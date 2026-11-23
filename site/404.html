@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maze unavailable | Maze Trail</title>
+  <script>
+    const route = location.pathname.lastIndexOf('/maze/')
+    if (route !== -1) {
+      const id = location.pathname.slice(route + 6).replace(/\/$/, '')
+      location.replace(location.pathname.slice(0, route + 1) + '?id=' + encodeURIComponent(id))
+    }
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Maze unavailable</h1>
+    <p>We couldn’t find that maze. Try scanning the QR code again.</p>
+  </main>
+</body>
+</html>
