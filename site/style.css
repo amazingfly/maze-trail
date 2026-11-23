@@ -73,7 +73,6 @@ h1 {
 }
 .view-button:hover { background: #eaf4eb; }
 .view-button:disabled { opacity: .45; cursor: default; }
-.view-button[aria-pressed="true"] { background: #255a49; color: white; }
 .view-button svg { width: 26px; height: 26px; }
 .expanded-maze {
   position: fixed;
@@ -138,10 +137,9 @@ body:has(.expanded-maze[open]) { overflow: hidden; }
   background: radial-gradient(#92b49a65 1px, transparent 1px) 0 0 / 19px 19px, #edf6e9;
 }
 #maze { width: 100%; height: 100%; min-height: 0; touch-action: none; cursor: grab; }
-#maze.is-dragging { cursor: grabbing; }
 #maze.is-solution { cursor: default; touch-action: auto; }
-#maze.is-panning { cursor: grab; touch-action: none; }
-#maze.is-panning.is-dragging { cursor: grabbing; }
+#maze.can-pan { cursor: grab; touch-action: none; }
+#maze.is-dragging, #maze.is-panning { cursor: grabbing; }
 #maze:focus-visible { outline-offset: -5px; border-radius: inherit; }
 .maze-walls { fill: none; stroke: #254237; }
 .maze-trail { fill: none; stroke: var(--path); stroke-linecap: round; stroke-linejoin: round; }

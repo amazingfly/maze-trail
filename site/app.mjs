@@ -1,6 +1,6 @@
-import { setupBoardView } from './board-view.mjs'
+import { setupBoardView } from './board-view.mjs?v=6'
 import { solveMaze } from './solver.mjs'
-import { createTrace } from './trace.mjs?v=2'
+import { createTrace } from './trace.mjs?v=6'
 
 const example = 'mz1_c6bo2ep5zxb2j5jttbufxrlgx4'
 const idPattern = /^mz1_[a-z2-7]{26}$/
@@ -119,7 +119,7 @@ function showMaze(data) {
     'stroke-width': .14 }, rays)
   const manual = setupTracing(data, manualGroup, [startPin, finishPin], rays, sparkle, width)
   const playback = setupPlayback(data, solutionGroup, width)
-  setupBoardView(maze, bounds, () => manual.point, manual.release)
+  setupBoardView(maze, bounds, manual)
 
   get('watch').addEventListener('click', () => {
     manual.release()
@@ -157,7 +157,8 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
   const pawn = draw('circle', { class: 'traveller manual-pawn', r: width * .82, 'stroke-width': width * .24 }, group)
   let gesture = null
   const active = () => !maze.classList.contains('is-solution') && !maze.classList.contains('is-panning')
-  const near = (a, b, amount) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= amount
+  const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1])
+  const playerPoint = () => trace.reversed && !trace.started ? star.center : trace.points.at(-1)
 
   function positionStar(point, scale = 1) {
     star.token.setAttribute('transform', `translate(${point.join(' ')}) scale(${scale})`)
@@ -193,9 +194,7 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
     render()
   }
 
-  function pointerPoint(event) {
-    const transform = maze.getScreenCTM()
-    if (!transform) return null
+  function pointerPoint(event, transform) {
     const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse())
     return [point.x, point.y]
   }
@@ -207,30 +206,51 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
 
   maze.addEventListener('pointerdown', (event) => {
     if (!active() || gesture || !event.isPrimary || event.button !== 0 || trace.finished) return
-    const point = pointerPoint(event)
-    if (!point) return
+    const transform = maze.getScreenCTM()
+    if (!transform) return
+    const point = pointerPoint(event, transform)
     const cell = trace.cellAt(point)
-    const onFlag = !trace.started && near(point, flag.center, flag.radius * 1.25)
-    const onStar = !trace.started && near(point, star.center, star.radius * 1.25)
-    if (onFlag || onStar) trace.reset(onStar)
-    const onPin = onFlag || onStar
-    const moved = cell !== trace.current() && !onPin && trace.move(cell)
-    if (cell !== trace.current() && !onPin) return
+    // Use both a minimum screen-size target and a fraction of the zoomed corridor.
+    const pixels = event.pointerType === 'mouse' ? 22 : 30
+    const slop = Math.max(data.corridor * .62, pixels / Math.hypot(transform.a, transform.b))
+    const onPlayer = cell === trace.current() || distance(point, playerPoint()) <= slop
+    const tappedCell = trace.canMove(cell) ? cell : undefined
+    let pin
+    if (!trace.started) {
+      const nearest = distance(point, flag.center) <= distance(point, star.center) ? flag : star
+      const gap = distance(point, nearest.center)
+      if (gap <= nearest.radius * 1.25 || (!onPlayer && tappedCell === undefined && gap <= slop)) pin = nearest
+    }
+    if (!onPlayer && tappedCell === undefined && !pin) return
+    if (pin) trace.reset(pin === star)
+
+    // A grab just outside the corridor moves relative to the player instead of jumping across a wall.
+    const anchor = pin?.center ?? (cell === trace.current() ? point : playerPoint())
+    gesture = {
+      id: event.pointerId,
+      point: anchor,
+      cell: trace.cellAt(anchor),
+      offset: [anchor[0] - point[0], anchor[1] - point[1]],
+      client: [event.clientX, event.clientY],
+      tappedCell: pin ? undefined : tappedCell,
+      dragged: false,
+    }
     if (event.pointerType === 'mouse') {
       event.preventDefault()
       maze.focus({ preventScroll: true })
     }
-    if (!trace.finished) {
-      gesture = { id: event.pointerId, point, cell }
-      maze.setPointerCapture(event.pointerId)
-      maze.classList.add('is-dragging')
-    }
-    if (moved || onPin) changed()
+    maze.setPointerCapture(event.pointerId)
+    maze.classList.add('is-dragging')
+    if (pin) changed()
   })
-  maze.addEventListener('pointermove', (event) => {
+
+  function movePointer(event) {
     if (!gesture || event.pointerId !== gesture.id || trace.finished) return
-    const point = pointerPoint(event)
-    if (!point) return
+    if (!gesture.dragged && distance([event.clientX, event.clientY], gesture.client) < 5) return
+    const transform = maze.getScreenCTM()
+    if (!transform) return
+    gesture.dragged = true
+    const point = pointerPoint(event, transform).map((value, i) => value + gesture.offset[i])
     const [x, y] = gesture.point
     const dx = point[0] - x
     const dy = point[1] - y
@@ -250,16 +270,29 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
     }
     gesture.point = point
     if (moved || (trace.reversed && !trace.started && initialCell !== gesture.cell)) changed()
+  }
+
+  const followTrace = () => maze.dispatchEvent(new Event('trace-release'))
+  maze.addEventListener('pointermove', movePointer)
+  maze.addEventListener('pointerup', event => {
+    if (gesture?.id !== event.pointerId) return
+    movePointer(event)
+    if (!gesture.dragged && gesture.tappedCell !== undefined && trace.move(gesture.tappedCell)) changed()
+    release()
+    followTrace()
   })
-  for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-    maze.addEventListener(name, (event) => {
+  for (const name of ['pointercancel', 'lostpointercapture']) {
+    maze.addEventListener(name, event => {
       if (gesture?.id === event.pointerId) release()
     })
   }
   maze.addEventListener('keydown', (event) => {
-    if (!active() || !directionKeys[event.key]) return
+    if (!active() || event.shiftKey || !directionKeys[event.key]) return
     event.preventDefault()
-    if (trace.moveDirection(directionKeys[event.key])) changed()
+    if (trace.moveDirection(directionKeys[event.key])) {
+      changed()
+      followTrace()
+    }
   })
   get('reset').addEventListener('click', () => {
     release()
@@ -270,7 +303,8 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
   render()
   return {
     render, release, showPins,
-    get point() { return trace.points.at(-1) },
+    ownsPointer: id => gesture?.id === id,
+    get point() { return playerPoint() },
     get success() { return success() },
     get finished() { return trace.finished },
     get reversed() { return trace.reversed },

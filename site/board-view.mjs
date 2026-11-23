@@ -1,20 +1,18 @@
 const levels = [1, 1.5, 2.25, 3.25, 4.5]
 
-export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
+export function setupBoardView(maze, bounds, trace) {
   const workspace = document.getElementById('workspace')
   const dialog = document.getElementById('expanded-maze')
   const expand = document.getElementById('expand-maze')
   const tools = document.getElementById('zoom-tools')
   const zoomOut = document.getElementById('zoom-out')
   const zoomIn = document.getElementById('zoom-in')
-  const hand = document.getElementById('pan-maze')
   const [left, top, width, height] = bounds
   const middle = [left + width / 2, top + height / 2]
   const home = workspace.parentElement
   const next = workspace.nextElementSibling
   let center = [...middle]
   let level = 0
-  let pan = false
   let drag = null
 
   function viewBox() {
@@ -27,13 +25,22 @@ export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
     if (fit <= 0) return
     const viewWidth = viewport.width / fit / levels[level]
     const viewHeight = viewport.height / fit / levels[level]
-    center = center.map((value, i) => {
+    const visibleCenter = center.map((value, i) => {
       const size = i === 0 ? viewWidth : viewHeight
       const span = i === 0 ? width : height
       const start = i === 0 ? left : top
       return size >= span ? middle[i] : Math.max(start + size / 2, Math.min(start + span - size / 2, value))
     })
-    maze.setAttribute('viewBox', [center[0] - viewWidth / 2, center[1] - viewHeight / 2, viewWidth, viewHeight].join(' '))
+    maze.setAttribute('viewBox', [
+      visibleCenter[0] - viewWidth / 2, visibleCenter[1] - viewHeight / 2, viewWidth, viewHeight,
+    ].join(' '))
+    return visibleCenter
+  }
+
+  function panBy(dx, dy) {
+    const current = maze.viewBox.baseVal
+    center = [current.x + current.width / 2 + dx, current.y + current.height / 2 + dy]
+    center = viewBox() ?? center
   }
 
   const resize = new ResizeObserver(viewBox)
@@ -42,16 +49,8 @@ export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
     if (!drag) return
     const id = drag.id
     drag = null
-    maze.classList.remove('is-dragging')
+    maze.classList.remove('is-panning')
     if (maze.hasPointerCapture(id)) maze.releasePointerCapture(id)
-  }
-
-  function setPan(enabled) {
-    releasePan()
-    if (enabled) releaseTrace()
-    pan = enabled
-    hand.setAttribute('aria-pressed', String(enabled))
-    maze.classList.toggle('is-panning', enabled)
   }
 
   function updateTools(open) {
@@ -65,17 +64,18 @@ export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
     }
     zoomOut.disabled = level === 0
     zoomIn.disabled = level === levels.length - 1
-    hand.disabled = level === 0
+    maze.classList.toggle('can-pan', open && level > 0)
   }
 
   function changeZoom(delta) {
     const nextLevel = level + delta
     if (nextLevel < 0 || nextLevel >= levels.length) return
-    if (level === 0 && !maze.classList.contains('is-solution')) center = [...currentPoint()]
+    trace.release()
+    releasePan()
+    if (level === 0 && !maze.classList.contains('is-solution')) center = [...trace.point]
     level = nextLevel
     if (level === 0) {
       center = [...middle]
-      setPan(false)
     }
     updateTools(true)
     viewBox()
@@ -86,7 +86,7 @@ export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
       dialog.close()
       return
     }
-    releaseTrace()
+    trace.release()
     dialog.append(workspace)
     updateTools(true)
     dialog.showModal()
@@ -98,7 +98,7 @@ export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
     resize.disconnect()
     level = 0
     center = [...middle]
-    setPan(false)
+    releasePan()
     home.insertBefore(workspace, next)
     updateTools(false)
     viewBox()
@@ -106,32 +106,29 @@ export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
   })
   zoomIn.addEventListener('click', () => changeZoom(1))
   zoomOut.addEventListener('click', () => changeZoom(-1))
-  hand.addEventListener('click', event => {
-    setPan(!pan)
-    if (pan && event.detail === 0) maze.focus({ preventScroll: true })
-  })
-  document.getElementById('reset').addEventListener('click', () => {
+  function followPlayer() {
     if (!dialog.open || level === 0) return
-    setPan(false)
-    center = [...currentPoint()]
+    center = [...trace.point]
     viewBox()
-  })
+  }
+
+  maze.addEventListener('trace-release', followPlayer)
+  document.getElementById('reset').addEventListener('click', followPlayer)
 
   maze.addEventListener('pointerdown', event => {
-    if (!pan || !event.isPrimary || event.button !== 0) return
+    if (!dialog.open || level === 0 || drag || !event.isPrimary || event.button !== 0) return
+    if (trace.ownsPointer(event.pointerId)) return
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY }
     maze.setPointerCapture(event.pointerId)
-    maze.classList.add('is-dragging')
+    maze.classList.add('is-panning')
   })
   maze.addEventListener('pointermove', event => {
     if (drag?.id !== event.pointerId) return
     const transform = maze.getScreenCTM()
     if (!transform) return
-    center[0] -= (event.clientX - drag.x) / transform.a
-    center[1] -= (event.clientY - drag.y) / transform.d
+    panBy((drag.x - event.clientX) / transform.a, (drag.y - event.clientY) / transform.d)
     drag.x = event.clientX
     drag.y = event.clientY
-    viewBox()
   })
   for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     maze.addEventListener(name, event => {
@@ -139,13 +136,11 @@ export function setupBoardView(maze, bounds, currentPoint, releaseTrace) {
     })
   }
   maze.addEventListener('keydown', event => {
-    if (!pan) return
+    if (!dialog.open || level === 0 || !event.shiftKey) return
     const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
     const direction = directions[event.key]
     if (!direction) return
     event.preventDefault()
-    center[0] += direction[0] * width / levels[level] * .18
-    center[1] += direction[1] * height / levels[level] * .18
-    viewBox()
+    panBy(direction[0] * width / levels[level] * .18, direction[1] * height / levels[level] * .18)
   })
 }

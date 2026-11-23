@@ -39,11 +39,16 @@ export function createTrace(data) {
       x >= left && x <= right && y >= top && y <= bottom && contains(polygon, x, y))?.cell
   }
 
+  function passageTo(next) {
+    const cell = current()
+    if (cell === data.openings[1 - origin][0]) return undefined
+    return neighbors[cell].find(([neighbor]) => neighbor === next)
+  }
+
   function move(next) {
-    const [finish, finishPoint] = data.openings[1 - origin]
-    if (current() === finish) return false
-    const passage = neighbors[current()].find(([cell]) => cell === next)
+    const passage = passageTo(next)
     if (!passage) return false
+    const [finish, finishPoint] = data.openings[1 - origin]
 
     const previous = cells.lastIndexOf(next)
     if (previous !== -1) {
@@ -73,6 +78,7 @@ export function createTrace(data) {
 
   return {
     cellAt,
+    canMove: next => Boolean(passageTo(next)),
     move,
     moveDirection,
     current,

@@ -6,8 +6,8 @@
   <meta name="description" content="Trace your printed maze or watch the solution come to life.">
   <meta name="theme-color" content="#fffaf0">
   <title>Maze Trail</title>
-  <link rel="stylesheet" href="./style.css?v=5">
-  <script type="module" src="./app.mjs?v=5"></script>
+  <link rel="stylesheet" href="./style.css?v=6">
+  <script type="module" src="./app.mjs?v=6"></script>
 </head>
 <body>
   <header class="masthead">
@@ -51,9 +51,6 @@
           <button type="button" id="zoom-in" class="view-button" aria-label="Zoom in" title="Zoom in">
             <svg viewBox="0 0 28 28" aria-hidden="true"><path d="M6 14h16M14 6v16" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>
           </button>
-          <button type="button" id="pan-maze" class="view-button" aria-pressed="false" aria-label="Move the maze" title="Move the maze">
-            <svg viewBox="0 0 28 28" aria-hidden="true"><path d="M9 14V6a1.7 1.7 0 0 1 3.4 0v6-8a1.7 1.7 0 0 1 3.4 0v8-7a1.7 1.7 0 0 1 3.4 0v8-5a1.7 1.7 0 0 1 3.4 0v9a7 7 0 0 1-7 7h-1a6 6 0 0 1-4.7-2.2l-4.7-5.6a1.9 1.9 0 0 1 2.8-2.5L10 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
         </div>
         <button type="button" id="expand-maze" class="view-button expand-maze" aria-label="Full screen" title="Full screen" aria-controls="expanded-maze">
           <svg viewBox="0 0 28 28" aria-hidden="true">
@@ -65,7 +62,7 @@
       </div>
       <section class="board" aria-label="Maze board">
         <svg id="maze" preserveAspectRatio="xMidYMid meet" role="group" tabindex="0" aria-label="Interactive maze" aria-describedby="maze-help"></svg>
-        <p id="maze-help" class="sr-only">Drag the star to the flag or the yellow dot to the star. You can also tap a connected space or use the arrow keys.</p>
+        <p id="maze-help" class="sr-only">Drag the star to the flag or the yellow dot to the star. You can also tap a connected space or use the arrow keys. When zoomed in, drag away from the player to move the board, or use Shift with the arrow keys.</p>
         <p id="status" class="sr-only" role="status"></p>
       </section>
       <section id="manual-controls" class="toolbar manual-controls" aria-label="Maze controls">
