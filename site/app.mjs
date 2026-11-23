@@ -34,10 +34,48 @@ function position(element, [x, y]) {
   element.setAttribute('cy', y)
 }
 
-function drawPin([, [x, y], [dx, dy]], radius, finish) {
-  const distance = radius * 1.75
-  const cx = x + dx * distance
-  const cy = y + dy * distance
+function artworkLayout({ artwork = [] }) {
+  return artwork.map(item => {
+    const angle = item.angle * Math.PI / 180
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    const extent = item.size * (Math.abs(cos) + Math.abs(sin)) / 2
+    return { ...item, cos, sin, extent }
+  })
+}
+
+function drawArtwork(artwork) {
+  const group = draw('g', { class: 'maze-artwork', 'aria-hidden': 'true', 'pointer-events': 'none' })
+  for (const { asset, center, angle, size } of artwork) {
+    draw('image', {
+      href: new URL(`data/art/${asset}.svg`, root).href,
+      x: -size / 2, y: -size / 2, width: size, height: size,
+      preserveAspectRatio: 'xMidYMid meet',
+      transform: `translate(${center.join(' ')}) rotate(${angle})`,
+    }, group)
+  }
+}
+
+function pinPlacement([, [x, y], [dx, dy]], size, artwork) {
+  // Keep the interactive markers clear of the original printed illustrations.
+  for (const [scale, offset] of [[1, 1.75], [1, 1.05], [.86, 1.05], [.72, 1.05]]) {
+    const radius = size * scale
+    const cx = x + dx * radius * offset
+    const cy = y + dy * radius * offset
+    const clear = artwork.every(({ center: [ax, ay], cos, sin, size }) => {
+      const along = (cx - ax) * cos + (cy - ay) * sin
+      const across = (cy - ay) * cos - (cx - ax) * sin
+      return Math.hypot(Math.max(0, Math.abs(along) - size / 2),
+        Math.max(0, Math.abs(across) - size / 2)) > radius * 1.07
+    })
+    if (clear) return { center: [cx, cy], radius }
+  }
+  return { center: [x + dx * size * .71, y + dy * size * .71], radius: size * .67 }
+}
+
+function drawPin(opening, size, finish, artwork) {
+  const [, [x, y]] = opening
+  const { center: [cx, cy], radius } = pinPlacement(opening, size, artwork)
   const color = finish ? '#bc4a25' : '#087354'
   const pin = draw('g', { class: finish ? 'finish-pin' : 'start-pin' })
   draw('path', { d: `M${x},${y}L${cx},${cy}`, stroke: color, 'stroke-width': radius * .3 }, pin)
@@ -46,31 +84,38 @@ function drawPin([, [x, y], [dx, dy]], radius, finish) {
   draw('circle', { r: radius, fill: color, stroke: '#fff', 'stroke-width': radius * .12 }, token)
   const icon = finish ? star : 'M-.35,.53V-.5H.46L.18,-.18L.46,.13H-.18V.53Z'
   draw('path', { d: icon, fill: '#fff', transform: `scale(${radius})` }, token)
-  return { center: [cx, cy], token }
+  return { center: [cx, cy], radius, token }
 }
 
 function showMaze(data) {
+  const artwork = artworkLayout(data)
   const [left, top, right, bottom] = data.bounds
   const radius = Math.min((right - left) * .05, (bottom - top) * .063, data.corridor * .61)
   const pad = radius * 3.65 + data.wallWidth
-  const viewWidth = right - left + 2 * pad
-  const viewHeight = bottom - top + 2 * pad
-  maze.setAttribute('viewBox', [left - pad, top - pad, viewWidth, viewHeight].join(' '))
+  const artPad = data.corridor * .18
+  const viewLeft = Math.min(left - pad, ...artwork.map(({ center: [x], extent }) => x - extent - artPad))
+  const viewTop = Math.min(top - pad, ...artwork.map(({ center: [, y], extent }) => y - extent - artPad))
+  const viewRight = Math.max(right + pad, ...artwork.map(({ center: [x], extent }) => x + extent + artPad))
+  const viewBottom = Math.max(bottom + pad, ...artwork.map(({ center: [, y], extent }) => y + extent + artPad))
+  const viewWidth = viewRight - viewLeft
+  const viewHeight = viewBottom - viewTop
+  maze.setAttribute('viewBox', [viewLeft, viewTop, viewWidth, viewHeight].join(' '))
   maze.parentElement.style.setProperty('--maze-ratio', viewWidth / viewHeight)
   const joins = { round: ['round', 'round'], square: ['square', 'miter'], bevel: ['square', 'bevel'] }
   const [cap, join] = joins[data.wallStyle]
   draw('path', { class: 'maze-walls', d: data.walls, 'stroke-width': data.wallWidth,
     'stroke-linecap': cap, 'stroke-linejoin': join })
+  drawArtwork(artwork)
   const width = data.corridor * .29
   const manualGroup = draw('g', {})
   const solutionGroup = draw('g', { visibility: 'hidden' })
-  const startPin = drawPin(data.openings[0], radius, false)
-  const finishPin = drawPin(data.openings[1], radius, true)
+  const startPin = drawPin(data.openings[0], radius, false, artwork)
+  const finishPin = drawPin(data.openings[1], radius, true, artwork)
   const rays = draw('g', {})
   const sparkle = draw('path', { class: 'finish-rays', hidden: '',
     d: 'M0-1.32v-.42 M0 1.32v.42 M-1.32 0h-.42 M1.32 0h.42 M.92-.92l.31-.31 M-.92.92l-.31.31 M.92.92l.31.31 M-.92-.92l-.31-.31',
     'stroke-width': .14 }, rays)
-  const manual = setupTracing(data, manualGroup, [startPin, finishPin], rays, sparkle, width, radius)
+  const manual = setupTracing(data, manualGroup, [startPin, finishPin], rays, sparkle, width)
   const playback = setupPlayback(data, solutionGroup, width)
 
   get('watch').addEventListener('click', () => {
@@ -101,7 +146,7 @@ function showMaze(data) {
   })
 }
 
-function setupTracing(data, group, [flag, star], rays, sparkle, width, radius) {
+function setupTracing(data, group, [flag, star], rays, sparkle, width) {
   const trace = createTrace(data)
   const success = () => trace.reversed ? 'You reached the flag!' : 'You reached the star!'
   const path = draw('path', { class: 'maze-trail manual-trail', 'stroke-width': width }, group)
@@ -127,12 +172,12 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width, radius) {
     pawn.toggleAttribute('hidden', trace.reversed)
     ripple.toggleAttribute('hidden', trace.started || trace.reversed)
     if (trace.reversed && (trace.started || gesture?.cell === trace.current())) {
-      positionStar(trace.points.at(-1), width / radius)
+      positionStar(trace.points.at(-1), width / star.radius)
     } else {
       positionStar(star.center)
     }
-    const goal = trace.reversed ? flag.center : star.center
-    rays.setAttribute('transform', `translate(${goal.join(' ')}) scale(${radius})`)
+    const goal = trace.reversed ? flag : star
+    rays.setAttribute('transform', `translate(${goal.center.join(' ')}) scale(${goal.radius})`)
     sparkle.toggleAttribute('hidden', !trace.finished)
   }
 
@@ -162,8 +207,8 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width, radius) {
     const point = pointerPoint(event)
     if (!point) return
     const cell = trace.cellAt(point)
-    const onFlag = !trace.started && near(point, flag.center, radius * 1.25)
-    const onStar = !trace.started && near(point, star.center, radius * 1.25)
+    const onFlag = !trace.started && near(point, flag.center, flag.radius * 1.25)
+    const onStar = !trace.started && near(point, star.center, star.radius * 1.25)
     if (onFlag || onStar) trace.reset(onStar)
     const onPin = onFlag || onStar
     const moved = cell !== trace.current() && !onPin && trace.move(cell)
@@ -344,7 +389,7 @@ async function load() {
   const unavailable = 'We couldn’t find that maze. Try scanning the QR code again.'
   try {
     if (!idPattern.test(id)) throw new Error(unavailable)
-    const response = await fetch(new URL(`data/${id}.json`, root))
+    const response = await fetch(new URL(`data/${id}.json?v=3`, root))
     if (response.status === 404) throw new Error(unavailable)
     if (!response.ok) throw new Error('Maze request failed')
     const data = await response.json()

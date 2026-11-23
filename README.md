@@ -2,7 +2,7 @@
 
 Maze Trail is a static GitHub Pages site for the QR codes printed by MazeGen. Each printed link opens its matching maze in tracing mode. Drag the star to the flag or the yellow dot to the star. You can also tap a connected space or focus the board and use the arrow keys. The trail follows open passages. The circular arrow resets it. The animated maze button opens the solution, where readers can pause, change speed, scrub through the route, replay it, or show the full path. The back button restores their own trail. With reduced motion enabled, the solution appears immediately.
 
-The QR uses MazeGen’s printed `mz1_` page ID. That ID is a hash of the archived print edition. Each ID has one small JSON record containing the maze geometry, cell outlines, and open passages. The browser draws the walls and solves the passage graph using breadth-first search. The site uses no print artwork, stored solutions, external fonts, server API, or tracking.
+The QR uses MazeGen’s printed `mz1_` page ID. That ID is a hash of the archived print edition. Each ID has one small JSON record with geometry, open passages, and the placement of its archived illustrations. The browser draws the walls, loads the original SVG artwork for that edition, and solves the passage graph using breadth-first search. Shared illustrations are stored once. The site runs without stored solutions, external fonts, a server API, or tracking.
 
 ## Preview
 
@@ -33,7 +33,7 @@ python3 -m mazegen render work/heart.json work/heart-web.pdf \
 
 MazeGen appends `/<page-id>` and writes the archived page to its page library. The default QR payload when no URL is supplied is plain `maze:mz1_…` text. Replace that payload by rendering with the live URL before printing the book.
 
-From this repository, export the archived pages and commit the resulting JSON files on `main`.
+From this repository, export the archived pages and commit the resulting JSON and SVG files on `main`.
 
 ```sh
 python3 scripts/export_mazes.py
