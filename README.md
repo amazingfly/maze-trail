@@ -1,6 +1,6 @@
 # Maze Trail
 
-Maze Trail is a static GitHub Pages site for the QR codes printed by MazeGen. Each printed link opens its matching maze in tracing mode. Drag the yellow dot, tap a connected space, or focus the board and use the arrow keys. The trail follows open passages. The circular arrow resets it. The animated maze button opens the solution, where readers can pause, change speed, scrub through the route, replay it, or show the full path. The back button restores their own trail. With reduced motion enabled, the solution appears immediately.
+Maze Trail is a static GitHub Pages site for the QR codes printed by MazeGen. Each printed link opens its matching maze in tracing mode. Drag the star to the flag or the yellow dot to the star. You can also tap a connected space or focus the board and use the arrow keys. The trail follows open passages. The circular arrow resets it. The animated maze button opens the solution, where readers can pause, change speed, scrub through the route, replay it, or show the full path. The back button restores their own trail. With reduced motion enabled, the solution appears immediately.
 
 The QR uses MazeGen’s printed `mz1_` page ID. That ID is a hash of the archived print edition. Each ID has one small JSON record containing the maze geometry, cell outlines, and open passages. The browser draws the walls and solves the passage graph using breadth-first search. The site uses no print artwork, stored solutions, external fonts, server API, or tracking.
 

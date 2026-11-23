@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#fffaf0">
   <title>Maze Trail</title>
   <link rel="stylesheet" href="./style.css">
-  <script type="module" src="./app.mjs"></script>
+  <script type="module" src="./app.mjs?v=2"></script>
 </head>
 <body>
   <header class="masthead">
@@ -22,7 +22,7 @@
     <div id="workspace" class="workspace" hidden>
       <section class="board" aria-label="Maze board">
         <svg id="maze" preserveAspectRatio="xMidYMid meet" role="group" tabindex="0" aria-label="Interactive maze" aria-describedby="maze-help"></svg>
-        <p id="maze-help" class="sr-only">Drag the yellow dot, tap a connected space, or focus the maze and use the arrow keys. Follow the corridors to the star.</p>
+        <p id="maze-help" class="sr-only">Drag the star to the flag or the yellow dot to the star. You can also tap a connected space or use the arrow keys.</p>
         <p id="status" class="sr-only" role="status"></p>
       </section>
       <section id="manual-controls" class="toolbar manual-controls" aria-label="Maze controls">

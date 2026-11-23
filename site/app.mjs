@@ -1,5 +1,5 @@
 import { solveMaze } from './solver.mjs'
-import { createTrace } from './trace.mjs'
+import { createTrace } from './trace.mjs?v=2'
 
 const example = 'mz1_c6bo2ep5zxb2j5jttbufxrlgx4'
 const idPattern = /^mz1_[a-z2-7]{26}$/
@@ -41,10 +41,12 @@ function drawPin([, [x, y], [dx, dy]], radius, finish) {
   const color = finish ? '#bc4a25' : '#087354'
   const pin = draw('g', { class: finish ? 'finish-pin' : 'start-pin' })
   draw('path', { d: `M${x},${y}L${cx},${cy}`, stroke: color, 'stroke-width': radius * .3 }, pin)
-  draw('circle', { cx, cy, r: radius, fill: color, stroke: '#fff', 'stroke-width': radius * .12 }, pin)
+  const token = draw('g', { class: finish ? 'star-token' : 'flag-token',
+    transform: `translate(${cx} ${cy})` }, pin)
+  draw('circle', { r: radius, fill: color, stroke: '#fff', 'stroke-width': radius * .12 }, token)
   const icon = finish ? star : 'M-.35,.53V-.5H.46L.18,-.18L.46,.13H-.18V.53Z'
-  draw('path', { d: icon, fill: '#fff', transform: `translate(${cx} ${cy}) scale(${radius})` }, pin)
-  return [cx, cy]
+  draw('path', { d: icon, fill: '#fff', transform: `scale(${radius})` }, token)
+  return { center: [cx, cy], token }
 }
 
 function showMaze(data) {
@@ -64,24 +66,24 @@ function showMaze(data) {
   const solutionGroup = draw('g', { visibility: 'hidden' })
   const startPin = drawPin(data.openings[0], radius, false)
   const finishPin = drawPin(data.openings[1], radius, true)
-  const rays = draw('g', { transform: `translate(${finishPin.join(' ')}) scale(${radius})` })
+  const rays = draw('g', {})
   const sparkle = draw('path', { class: 'finish-rays', hidden: '',
     d: 'M0-1.32v-.42 M0 1.32v.42 M-1.32 0h-.42 M1.32 0h.42 M.92-.92l.31-.31 M-.92.92l-.31.31 M.92.92l.31.31 M-.92-.92l-.31-.31',
     'stroke-width': .14 }, rays)
-  const manual = setupTracing(data, manualGroup, startPin, sparkle, width)
+  const manual = setupTracing(data, manualGroup, [startPin, finishPin], rays, sparkle, width, radius)
   const playback = setupPlayback(data, solutionGroup, width)
 
   get('watch').addEventListener('click', () => {
     manual.release()
     manualGroup.setAttribute('visibility', 'hidden')
     solutionGroup.setAttribute('visibility', 'visible')
-    sparkle.toggleAttribute('hidden', true)
+    manual.showPins()
     maze.classList.add('is-solution')
     maze.tabIndex = -1
     maze.setAttribute('aria-label', 'Animated maze solution')
     get('manual-controls').hidden = true
     get('solution-controls').hidden = false
-    playback.start()
+    playback.start(manual.reversed)
     get('play').focus({ preventScroll: true })
   })
   get('back').addEventListener('click', () => {
@@ -94,13 +96,14 @@ function showMaze(data) {
     get('solution-controls').hidden = true
     get('manual-controls').hidden = false
     manual.render()
-    status.textContent = manual.finished ? 'You reached the star!' : 'Keep tracing.'
+    status.textContent = manual.finished ? manual.success : 'Keep tracing.'
     get('watch').focus({ preventScroll: true })
   })
 }
 
-function setupTracing(data, group, startPin, sparkle, width) {
+function setupTracing(data, group, [flag, star], rays, sparkle, width, radius) {
   const trace = createTrace(data)
+  const success = () => trace.reversed ? 'You reached the flag!' : 'You reached the star!'
   const path = draw('path', { class: 'maze-trail manual-trail', 'stroke-width': width }, group)
   const ripple = draw('circle', { class: 'start-ripple', r: width, 'stroke-width': width * .18 }, group)
   const pawn = draw('circle', { class: 'traveller manual-pawn', r: width * .82, 'stroke-width': width * .24 }, group)
@@ -108,11 +111,28 @@ function setupTracing(data, group, startPin, sparkle, width) {
   const active = () => !maze.classList.contains('is-solution')
   const near = (a, b, amount) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= amount
 
+  function positionStar(point, scale = 1) {
+    star.token.setAttribute('transform', `translate(${point.join(' ')}) scale(${scale})`)
+  }
+
+  function showPins() {
+    positionStar(star.center)
+    sparkle.toggleAttribute('hidden', true)
+  }
+
   function render() {
     path.setAttribute('d', trace.started ? pathData(trace.points) : '')
     position(pawn, trace.points.at(-1))
     position(ripple, trace.points.at(-1))
-    ripple.toggleAttribute('hidden', trace.started)
+    pawn.toggleAttribute('hidden', trace.reversed)
+    ripple.toggleAttribute('hidden', trace.started || trace.reversed)
+    if (trace.reversed && (trace.started || gesture?.cell === trace.current())) {
+      positionStar(trace.points.at(-1), width / radius)
+    } else {
+      positionStar(star.center)
+    }
+    const goal = trace.reversed ? flag.center : star.center
+    rays.setAttribute('transform', `translate(${goal.join(' ')}) scale(${radius})`)
     sparkle.toggleAttribute('hidden', !trace.finished)
   }
 
@@ -122,6 +142,7 @@ function setupTracing(data, group, startPin, sparkle, width) {
     gesture = null
     if (maze.hasPointerCapture(id)) maze.releasePointerCapture(id)
     maze.classList.remove('is-dragging')
+    render()
   }
 
   function pointerPoint(event) {
@@ -133,7 +154,7 @@ function setupTracing(data, group, startPin, sparkle, width) {
 
   function changed() {
     render()
-    if (trace.finished) status.textContent = 'You reached the star!'
+    if (trace.finished) status.textContent = success()
   }
 
   maze.addEventListener('pointerdown', (event) => {
@@ -141,9 +162,12 @@ function setupTracing(data, group, startPin, sparkle, width) {
     const point = pointerPoint(event)
     if (!point) return
     const cell = trace.cellAt(point)
-    const onStart = !trace.started && near(point, startPin, width * 2.25)
-    const moved = cell !== trace.current() && !onStart && trace.move(cell)
-    if (cell !== trace.current() && !onStart) return
+    const onFlag = !trace.started && near(point, flag.center, radius * 1.25)
+    const onStar = !trace.started && near(point, star.center, radius * 1.25)
+    if (onFlag || onStar) trace.reset(onStar)
+    const onPin = onFlag || onStar
+    const moved = cell !== trace.current() && !onPin && trace.move(cell)
+    if (cell !== trace.current() && !onPin) return
     if (event.pointerType === 'mouse') {
       event.preventDefault()
       maze.focus({ preventScroll: true })
@@ -153,7 +177,7 @@ function setupTracing(data, group, startPin, sparkle, width) {
       maze.setPointerCapture(event.pointerId)
       maze.classList.add('is-dragging')
     }
-    if (moved) changed()
+    if (moved || onPin) changed()
   })
   maze.addEventListener('pointermove', (event) => {
     if (!gesture || event.pointerId !== gesture.id || trace.finished) return
@@ -169,6 +193,7 @@ function setupTracing(data, group, startPin, sparkle, width) {
       gesture.cell = trace.cellAt(point)
       return
     }
+    const initialCell = gesture.cell
     let moved = false
     for (let i = 1; i <= steps && !trace.finished; i++) {
       const next = trace.cellAt([x + dx * i / steps, y + dy * i / steps])
@@ -176,7 +201,7 @@ function setupTracing(data, group, startPin, sparkle, width) {
       gesture.cell = next
     }
     gesture.point = point
-    if (moved) changed()
+    if (moved || (trace.reversed && !trace.started && initialCell !== gesture.cell)) changed()
   })
   for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     maze.addEventListener(name, (event) => {
@@ -192,10 +217,15 @@ function setupTracing(data, group, startPin, sparkle, width) {
     release()
     trace.reset()
     render()
-    status.textContent = 'Maze reset. Start at the yellow dot.'
+    status.textContent = 'Maze reset. Start at either end.'
   })
   render()
-  return { render, release, get finished() { return trace.finished } }
+  return {
+    render, release, showPins,
+    get success() { return success() },
+    get finished() { return trace.finished },
+    get reversed() { return trace.reversed },
+  }
 }
 
 function setupPlayback(data, group, width) {
@@ -213,6 +243,7 @@ function setupPlayback(data, group, width) {
   let previousTime = null
   let speed = Number(document.querySelector('[name="speed"]:checked').value)
   let lastPercent = -1
+  let reversed = false
 
   function render(value) {
     fraction = value
@@ -246,7 +277,8 @@ function setupPlayback(data, group, width) {
   }
 
   function updatePaused() {
-    const announcement = fraction === 1 ? 'The trail reached the star.' : 'Solution paused.'
+    const goal = reversed ? 'flag' : 'star'
+    const announcement = fraction === 1 ? `The trail reached the ${goal}.` : 'Solution paused.'
     if (reducedMotion.matches) setAction('reveal', 'Show solution', announcement)
     else if (fraction === 1) setAction('replay', 'Play again', announcement)
     else setAction('play', fraction === 0 ? 'Play solution' : 'Keep going', announcement)
@@ -299,7 +331,9 @@ function setupPlayback(data, group, width) {
   render(0)
   return {
     stop,
-    start() {
+    start(fromStar) {
+      reversed = fromStar
+      trail.setAttribute('d', pathData(reversed ? [...points].reverse() : points))
       render(0)
       start()
     },

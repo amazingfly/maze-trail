@@ -11,7 +11,6 @@ function contains(polygon, x, y) {
 }
 
 export function createTrace(data) {
-  const [[start, startPoint], [finish, finishPoint]] = data.openings
   const neighbors = passageGraph(data)
   const regions = data.polygons.flatMap((polygon, cell) => {
     if (!polygon) return []
@@ -19,8 +18,20 @@ export function createTrace(data) {
     const ys = polygon.map(([, y]) => y)
     return [{ cell, polygon, bounds: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }]
   })
-  const cells = [start]
-  const points = [startPoint, data.centers[start]]
+  let origin = 0
+  const cells = []
+  const points = []
+
+  function reset(reversed = false) {
+    origin = reversed ? 1 : 0
+    const [start, startPoint] = data.openings[origin]
+    cells.length = 0
+    cells.push(start)
+    points.length = 0
+    points.push(startPoint, data.centers[start])
+  }
+
+  reset()
   const current = () => cells.at(-1)
 
   function cellAt([x, y]) {
@@ -29,6 +40,7 @@ export function createTrace(data) {
   }
 
   function move(next) {
+    const [finish, finishPoint] = data.openings[1 - origin]
     if (current() === finish) return false
     const passage = neighbors[current()].find(([cell]) => cell === next)
     if (!passage) return false
@@ -65,11 +77,9 @@ export function createTrace(data) {
     moveDirection,
     current,
     get started() { return cells.length > 1 },
-    get finished() { return current() === finish },
+    get finished() { return current() === data.openings[1 - origin][0] },
+    get reversed() { return origin === 1 },
     points,
-    reset() {
-      cells.length = 1
-      points.length = 2
-    },
+    reset,
   }
 }
