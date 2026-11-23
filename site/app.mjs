@@ -1,3 +1,4 @@
+import { setupBoardView } from './board-view.mjs'
 import { solveMaze } from './solver.mjs'
 import { createTrace } from './trace.mjs?v=2'
 
@@ -99,7 +100,8 @@ function showMaze(data) {
   const viewBottom = Math.max(bottom + pad, ...artwork.map(({ center: [, y], extent }) => y + extent + artPad))
   const viewWidth = viewRight - viewLeft
   const viewHeight = viewBottom - viewTop
-  maze.setAttribute('viewBox', [viewLeft, viewTop, viewWidth, viewHeight].join(' '))
+  const bounds = [viewLeft, viewTop, viewWidth, viewHeight]
+  maze.setAttribute('viewBox', bounds.join(' '))
   maze.parentElement.style.setProperty('--maze-ratio', viewWidth / viewHeight)
   const joins = { round: ['round', 'round'], square: ['square', 'miter'], bevel: ['square', 'bevel'] }
   const [cap, join] = joins[data.wallStyle]
@@ -117,6 +119,7 @@ function showMaze(data) {
     'stroke-width': .14 }, rays)
   const manual = setupTracing(data, manualGroup, [startPin, finishPin], rays, sparkle, width)
   const playback = setupPlayback(data, solutionGroup, width)
+  setupBoardView(maze, bounds, () => manual.point, manual.release)
 
   get('watch').addEventListener('click', () => {
     manual.release()
@@ -153,7 +156,7 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
   const ripple = draw('circle', { class: 'start-ripple', r: width, 'stroke-width': width * .18 }, group)
   const pawn = draw('circle', { class: 'traveller manual-pawn', r: width * .82, 'stroke-width': width * .24 }, group)
   let gesture = null
-  const active = () => !maze.classList.contains('is-solution')
+  const active = () => !maze.classList.contains('is-solution') && !maze.classList.contains('is-panning')
   const near = (a, b, amount) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= amount
 
   function positionStar(point, scale = 1) {
@@ -267,6 +270,7 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
   render()
   return {
     render, release, showPins,
+    get point() { return trace.points.at(-1) },
     get success() { return success() },
     get finished() { return trace.finished },
     get reversed() { return trace.reversed },

@@ -47,9 +47,88 @@ h1 {
   text-wrap: balance;
   margin: 0 0 18px;
 }
-.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; align-items: start; }
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  grid-template-areas: "view view" "board controls";
+  gap: 8px 16px;
+  align-items: start;
+}
+.board-tools, .zoom-tools { display: flex; align-items: center; gap: 6px; }
+.board-tools { grid-area: view; justify-content: flex-end; }
+.view-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--ink);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 800;
+}
+.view-button:hover { background: #eaf4eb; }
+.view-button:disabled { opacity: .45; cursor: default; }
+.view-button[aria-pressed="true"] { background: #255a49; color: white; }
+.view-button svg { width: 26px; height: 26px; }
+.expanded-maze {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right))
+           max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+  border: 0;
+  overflow: hidden;
+  color: var(--ink);
+  background: #fffaf0;
+}
+body:has(.expanded-maze[open]) { overflow: hidden; }
+.expanded-maze .workspace {
+  height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "view" "board" "controls";
+  gap: 5px;
+  align-items: stretch;
+}
+.expanded-maze .board-tools { justify-content: space-between; }
+.expanded-maze .board {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 13px;
+}
+.expanded-maze .maze-walls { stroke: #20382e; }
+.expanded-maze .toolbar { padding: 5px; gap: 5px; box-shadow: none; }
+.expanded-maze .manual-controls { grid-template-columns: 1fr 1.5fr; }
+.expanded-maze .manual-controls .action { min-height: 49px; grid-auto-flow: column; justify-content: center; }
+.expanded-maze .manual-controls .action svg { width: 32px; height: 32px; }
+.expanded-maze .manual-controls .watch svg { width: 48px; }
+.expanded-maze .solution-controls { grid-template-columns: minmax(0, 1fr) minmax(120px, .65fr); }
+.expanded-maze .solution-actions { grid-column: 1 / -1; }
+.expanded-maze .solution-actions .action { min-height: 44px; }
+@media (orientation: landscape) {
+  .expanded-maze .workspace {
+    grid-template-columns: minmax(0, 1fr) clamp(145px, 21vw, 208px);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "view view" "board controls";
+  }
+  .expanded-maze .toolbar { align-self: start; }
+  .expanded-maze .manual-controls, .expanded-maze .solution-controls { grid-template-columns: minmax(0, 1fr); }
+}
+
 
 .board {
+  grid-area: board;
   display: grid;
   min-width: 0;
   height: clamp(375px, 72vh, 670px);
@@ -61,6 +140,8 @@ h1 {
 #maze { width: 100%; height: 100%; min-height: 0; touch-action: none; cursor: grab; }
 #maze.is-dragging { cursor: grabbing; }
 #maze.is-solution { cursor: default; touch-action: auto; }
+#maze.is-panning { cursor: grab; touch-action: none; }
+#maze.is-panning.is-dragging { cursor: grabbing; }
 #maze:focus-visible { outline-offset: -5px; border-radius: inherit; }
 .maze-walls { fill: none; stroke: #254237; }
 .maze-trail { fill: none; stroke: var(--path); stroke-linecap: round; stroke-linejoin: round; }
@@ -88,6 +169,7 @@ h1 {
 @keyframes finish-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 .toolbar {
+  grid-area: controls;
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -198,7 +280,7 @@ h1 {
   .wordmark svg { width: 31px; }
   main { margin: 14px auto 20px; }
   h1 { margin-bottom: 11px; }
-  .workspace { grid-template-columns: 1fr; gap: 9px; }
+  .workspace { grid-template-columns: 1fr; grid-template-areas: "view" "board" "controls"; gap: 8px; }
   .board { height: auto; min-height: 210px; max-height: min(57svh, 490px); aspect-ratio: var(--maze-ratio, 1); border-radius: 17px; }
   .toolbar { padding: 7px; gap: 6px; border-radius: 14px; }
   .manual-controls { grid-template-columns: 1fr 1.5fr; }
