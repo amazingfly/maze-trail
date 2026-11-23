@@ -385,6 +385,60 @@ function setupPlayback(data, group, width) {
   }
 }
 
+function setupMazePicker() {
+  const open = get('open-picker')
+  const dialog = get('maze-picker')
+  const message = get('picker-status')
+  const buttons = [...dialog.querySelectorAll('[data-difficulty]')]
+  let catalog
+  let loading = false
+
+  async function loadCatalog() {
+    loading = true
+    message.textContent = 'Finding mazes…'
+    message.hidden = false
+    try {
+      const response = await fetch(new URL('maze-index.json', root))
+      if (!response.ok) throw new Error('Maze catalog unavailable')
+      const entries = await response.json()
+      catalog = Object.fromEntries(buttons.map(({ dataset: { difficulty } }) => [
+        difficulty, (entries[difficulty] ?? []).filter(pageId => idPattern.test(pageId)),
+      ]))
+      for (const button of buttons) {
+        button.disabled = catalog[button.dataset.difficulty].length === 0
+      }
+      const available = buttons.find(button => !button.disabled)
+      if (!available) throw new Error('Maze catalog is empty')
+      message.hidden = true
+      if (!dialog.open) return
+      const close = dialog.querySelector('.picker-close')
+      if (document.activeElement === close) available.focus()
+    } catch {
+      catalog = undefined
+      message.textContent = 'Mazes couldn’t load. Close this window and try again.'
+    } finally {
+      loading = false
+    }
+  }
+
+  open.addEventListener('click', () => {
+    dialog.showModal()
+    if (!catalog && !loading) loadCatalog()
+    else buttons.find(button => !button.disabled)?.focus()
+  })
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      const matches = catalog?.[button.dataset.difficulty]
+      if (!matches?.length) return
+      const choices = matches.length > 1 ? matches.filter(pageId => pageId !== id) : matches
+      const randomId = choices[Math.floor(Math.random() * choices.length)]
+      dialog.close()
+      location.assign(new URL(`maze/${randomId}/`, root))
+    })
+  }
+  open.hidden = false
+}
+
 async function load() {
   const unavailable = 'We couldn’t find that maze. Try scanning the QR code again.'
   try {
@@ -411,4 +465,5 @@ async function load() {
   }
 }
 
+setupMazePicker()
 load()

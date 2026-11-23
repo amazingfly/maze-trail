@@ -24,6 +24,8 @@ button, a, input, .speed label { touch-action: manipulation; }
   margin: auto;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   border-bottom: 1px solid #e5ddcc;
 }
 .wordmark {
@@ -141,6 +143,55 @@ h1 {
 .message { padding: 18px; border: 1px solid var(--line); border-radius: 14px; width: fit-content; }
 .demo-link { display: inline-block; padding: 12px 0; color: var(--teal); font-weight: 750; }
 
+
+.random-button, .picker-close, .difficulty-options button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 800;
+}
+.random-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  background: #fff2cd;
+  border-color: #e9d499;
+}
+.random-button svg { width: 25px; flex: none; }
+.random-button:hover { background: #fce5a4; }
+.maze-picker {
+  color: var(--ink);
+  width: min(420px, calc(100% - 24px));
+  padding: 18px;
+  border: 1px solid #e6dece;
+  border-radius: 22px;
+  background: #fffaf0;
+}
+.maze-picker::backdrop { background: #20382e70; }
+.picker-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.picker-header h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.03em; }
+.picker-close { display: grid; width: 44px; place-items: center; }
+.picker-close svg { width: 22px; }
+.difficulty-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.difficulty-options button {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  min-height: 74px;
+  padding: 6px;
+  background: #edf5eb;
+  font-size: .875rem;
+}
+.difficulty-options span { color: #087354; font-size: 1.2rem; line-height: 1.2; }
+.difficulty-options button:hover, .picker-close:hover { background: #dbeede; }
+.difficulty-options button:disabled { opacity: .55; cursor: default; }
+.picker-status { margin: 12px 0 0; }
+
 @media (max-width: 690px) {
   .masthead, main { width: calc(100% - 24px); }
   .masthead { min-height: 53px; }
@@ -156,6 +207,11 @@ h1 {
   .manual-controls .watch svg { width: 60px; height: 39px; }
   .solution-controls { grid-template-columns: minmax(0, 1fr) minmax(120px, .8fr); }
   .solution-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 350px) {
+  .random-button { font-size: .9rem; padding: 0 8px; }
+  .difficulty-options { grid-template-columns: 1fr; }
+  .difficulty-options button { min-height: 48px; grid-auto-flow: column; gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .start-ripple, .finish-rays, .mini-route { animation: none; }

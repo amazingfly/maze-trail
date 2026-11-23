@@ -2,6 +2,7 @@
 """Stage the static site and give every printed ID a real GitHub Pages route."""
 
 import argparse
+import json
 from pathlib import Path
 import re
 import shutil
@@ -25,7 +26,16 @@ def main():
     if not records or any(not PAGE_ID.fullmatch(record.stem) for record in records):
         parser.error("site/data must contain valid printed page IDs")
 
+    catalog = {}
+    for record in records:
+        data = json.loads(record.read_text(encoding="utf-8"))
+        if data["id"] != record.stem:
+            parser.error(f"page ID in {record.name} does not match its filename")
+        catalog.setdefault(data["difficulty"], []).append(record.stem)
+
     shutil.copytree(source, output, dirs_exist_ok=True)
+    (output / "maze-index.json").write_text(json.dumps(catalog, separators=(",", ":")) + "\n",
+                                            encoding="utf-8")
     index = (source / "index.html").read_text(encoding="utf-8")
     nested = index.replace('href="./', 'href="../../').replace('src="./', 'src="../../')
     for record in records:

@@ -6,8 +6,8 @@
   <meta name="description" content="Trace your printed maze or watch the solution come to life.">
   <meta name="theme-color" content="#fffaf0">
   <title>Maze Trail</title>
-  <link rel="stylesheet" href="./style.css">
-  <script type="module" src="./app.mjs?v=3"></script>
+  <link rel="stylesheet" href="./style.css?v=4">
+  <script type="module" src="./app.mjs?v=4"></script>
 </head>
 <body>
   <header class="masthead">
@@ -15,7 +15,30 @@
       <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M12 29V11h17v17H19V18h5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="29" r="2.4" fill="currentColor"/></svg>
       Maze Trail
     </a>
+    <button type="button" id="open-picker" class="random-button" aria-haspopup="dialog" aria-controls="maze-picker" hidden>
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="21" height="21" rx="5" fill="none" stroke="currentColor" stroke-width="2.5" transform="rotate(-8 14 14)"/>
+        <path d="M9 9h.01M19 9h.01M14 14h.01M9 19h.01M19 19h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      Random maze
+    </button>
   </header>
+  <dialog id="maze-picker" class="maze-picker" aria-labelledby="picker-title">
+    <div class="picker-header">
+      <h2 id="picker-title">Pick a difficulty</h2>
+      <form method="dialog">
+        <button type="submit" class="picker-close" aria-label="Close maze selector">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </button>
+      </form>
+    </div>
+    <div class="difficulty-options">
+      <button type="button" data-difficulty="preschool" disabled><span aria-hidden="true">★☆☆</span>Preschool</button>
+      <button type="button" data-difficulty="easy" disabled><span aria-hidden="true">★★☆</span>Easy</button>
+      <button type="button" data-difficulty="challenge" disabled><span aria-hidden="true">★★★</span>Challenge</button>
+    </div>
+    <p id="picker-status" class="picker-status" role="status" hidden></p>
+  </dialog>
   <main>
     <h1 id="maze-title">Maze Trail</h1>
     <div id="message" class="message" role="status">Getting your maze ready…</div>
