@@ -222,6 +222,22 @@ body:has(.expanded-maze[open]) { overflow: hidden; }
 .speed input:focus-visible + svg { outline: 3px solid #126fcb; }
 .message { padding: 18px; border: 1px solid var(--line); border-radius: 14px; width: fit-content; }
 .demo-link { display: inline-block; padding: 12px 0; color: var(--teal); font-weight: 750; }
+.site-footer {
+  width: min(1110px, calc(100% - 48px));
+  margin: 0 auto 24px;
+  border-top: 1px solid #e5ddcc;
+}
+.book-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 7px 0;
+  color: var(--teal);
+  font-weight: 750;
+  text-underline-offset: .17em;
+}
+.book-download svg { flex: none; width: 22px; }
 
 
 .random-button, .picker-close, .difficulty-options button {
@@ -273,7 +289,7 @@ body:has(.expanded-maze[open]) { overflow: hidden; }
 .picker-status { margin: 12px 0 0; }
 
 @media (max-width: 690px) {
-  .masthead, main { width: calc(100% - 24px); }
+  .masthead, main, .site-footer { width: calc(100% - 24px); }
   .masthead { min-height: 53px; }
   .wordmark svg { width: 31px; }
   main { margin: 14px auto 20px; }
