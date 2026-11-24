@@ -2,7 +2,7 @@ import { setupBoardView } from './board-view.mjs?v=6'
 import { solveMaze } from './solver.mjs'
 import { createTrace } from './trace.mjs?v=6'
 
-const example = 'mz1_c6bo2ep5zxb2j5jttbufxrlgx4'
+const example = 'mz1_jwgc6p4fhllup6bypbhlsuiqoa'
 const idPattern = /^mz1_[a-z2-7]{26}$/
 const root = new URL('./', import.meta.url)
 const route = location.pathname.slice(root.pathname.length).replace(/(^|\/)index\.html$/, '').replace(/\/$/, '')
@@ -105,8 +105,14 @@ function showMaze(data) {
   maze.parentElement.style.setProperty('--maze-ratio', viewWidth / viewHeight)
   const joins = { round: ['round', 'round'], square: ['square', 'miter'], bevel: ['square', 'bevel'] }
   const [cap, join] = joins[data.wallStyle]
-  draw('path', { class: 'maze-walls', d: data.walls, 'stroke-width': data.wallWidth,
-    'stroke-linecap': cap, 'stroke-linejoin': join })
+  if (data.roomFloor) {
+    draw('path', { d: data.roomFloor, fill: '#f9f3d7', stroke: '#f9f3d7', 'stroke-width': '.006' })
+  }
+  const walls = draw('g', { class: 'maze-walls', 'stroke-linecap': cap, 'stroke-linejoin': join })
+  draw('path', { d: data.walls, 'stroke-width': data.wallWidth }, walls)
+  if (data.outline) {
+    draw('path', { d: data.outline.path, 'stroke-width': data.outline.width }, walls)
+  }
   drawArtwork(artwork)
   const width = data.corridor * .29
   const manualGroup = draw('g', {})
@@ -436,7 +442,7 @@ function setupMazePicker() {
     message.textContent = 'Finding mazes…'
     message.hidden = false
     try {
-      const response = await fetch(new URL('maze-index.json', root))
+      const response = await fetch(new URL('maze-index.json?v=7', root))
       if (!response.ok) throw new Error('Maze catalog unavailable')
       const entries = await response.json()
       catalog = Object.fromEntries(buttons.map(({ dataset: { difficulty } }) => [

@@ -45,7 +45,15 @@ def export_artwork(page, library, output, digest, load_svg, exported):
     return artwork
 
 
-def encode(page, mesh, midpoint, path_data, artwork):
+def joined_paths(lines, path_data):
+    return "".join(path_data(line) + ("Z" if line[0] == line[-1] else "") for line in lines)
+
+
+def corners(cell):
+    return [point for side in cell["sides"] for point in side[:-1]]
+
+
+def encode(page, mesh, midpoint, path_data, wall_paths, artwork):
     source = page["source"]
     layout = page["layout"]
     config = source["config"]
@@ -56,7 +64,7 @@ def encode(page, mesh, midpoint, path_data, artwork):
         line, (a, b) = mesh.edges[edge]
         passages.append([a, b, *compact(midpoint(line))])
 
-    return {
+    payload = {
         "version": 2,
         "id": page["page_id"],
         "title": source.get("title") or (source.get("quest") or {}).get("name") or "Maze solution",
@@ -65,13 +73,10 @@ def encode(page, mesh, midpoint, path_data, artwork):
         "wallWidth": round(config["wall_pt"] / layout["scale"], 5),
         "wallStyle": config["wall_style"],
         "corridor": round(layout["corridor"] / layout["scale"], 5),
-        "walls": "".join(
-            path_data(points) + ("Z" if points[0] == points[-1] else "")
-            for points in page["walls"]
-        ),
+        "walls": joined_paths(page["walls"], path_data),
         "centers": [compact(cell["center"]) for cell in mesh.cells],
         "polygons": [
-            [compact(point) for side in cell["sides"] for point in side[:-1]]
+            [compact(point) for point in corners(cell)]
             if index not in mesh.reserved else None
             for index, cell in enumerate(mesh.cells)
         ],
@@ -82,6 +87,18 @@ def encode(page, mesh, midpoint, path_data, artwork):
             for opening in openings
         ],
     }
+    if config.get("outline_pt"):
+        gaps = set(source["passages"]) | set(source["openings"])
+        payload["outline"] = {
+            "path": joined_paths(wall_paths(mesh, gaps, exterior=True), path_data),
+            "width": round(config["outline_pt"] / layout["scale"], 5),
+        }
+    if config.get("room_style") == "open" and source.get("rooms"):
+        payload["roomFloor"] = "".join(
+            path_data(corners(mesh.cells[cell])) + "Z"
+            for room in source["rooms"] for cell in room["floor"]
+        )
+    return payload
 
 
 def main():
@@ -89,18 +106,33 @@ def main():
     parser.add_argument("--mazegen", type=Path, default=ROOT.parent / "mazeGen")
     parser.add_argument("--library", type=Path, help="MazeGen page library root")
     parser.add_argument("--output", type=Path, default=ROOT / "site" / "data")
+    parser.add_argument("--production-manifest", type=Path,
+                        help="Export this production book and set the selector to its maze pages")
     parser.add_argument("ids", nargs="*", help="Optional mz1_ page IDs to export")
     args = parser.parse_args()
+    if args.production_manifest and args.ids:
+        parser.error("choose either a production manifest or individual page IDs")
 
     sys.path.insert(0, str(args.mazegen.resolve()))
     from mazegen.assets import load_svg
     from mazegen.geometry import Mesh, midpoint
     from mazegen.page_identity import canonical, digest, parse_id, short_id
-    from mazegen.render import path_data
+    from mazegen.render import path_data, wall_paths
 
     library = args.library or args.mazegen / "page-library"
     pages = library / "pages"
-    files = ([pages / f"{parse_id(value)}.json" for value in args.ids] if args.ids
+    ids = args.ids
+    production = None
+    if args.production_manifest:
+        manifest = json.loads(args.production_manifest.read_text(encoding="utf-8"))
+        if manifest["schema"] != "mazegen-production-v1":
+            parser.error("expected a MazeGen production manifest")
+        production = {parse_id(page["page_id"]): page["difficulty"]
+                      for page in manifest["pages"] if page["kind"] == "maze"}
+        if not production or len(production) != sum(page["kind"] == "maze" for page in manifest["pages"]):
+            parser.error("production maze pages must have unique IDs")
+        ids = list(production)
+    files = ([pages / f"{parse_id(value)}.json" for value in ids] if ids
              else sorted(pages.glob("mz1_*.json")))
     if not files:
         parser.error(f"no archived pages found in {pages}")
@@ -117,12 +149,19 @@ def main():
         source = page["source"]
         mesh = Mesh(source["cells"], set(source["reserved"]))
         artwork = export_artwork(page, library, args.output / "art", digest, load_svg, exported)
-        payload = encode(page, mesh, midpoint, path_data, artwork)
+        payload = encode(page, mesh, midpoint, path_data, wall_paths, artwork)
+        if production is not None and payload["difficulty"] != production[file.stem]:
+            raise ValueError(f"Production difficulty disagrees with the archive: {file}")
         target = args.output / file.name
         temp = target.with_suffix(".tmp")
         temp.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
                         encoding="utf-8")
         temp.replace(target)
+    if production is not None:
+        selection = args.output / "selector-pages.json"
+        temp = selection.with_suffix(".tmp")
+        temp.write_text(json.dumps(ids, indent=2) + "\n", encoding="utf-8")
+        temp.replace(selection)
     print(f"Exported {len(files)} maze pages and {len(exported)} unique illustrations to {args.output}")
 
 
