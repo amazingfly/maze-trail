@@ -6,8 +6,8 @@
   <meta name="description" content="Trace your printed maze or watch the solution come to life.">
   <meta name="theme-color" content="#fffaf0">
   <title>Maze Trail</title>
-  <link rel="stylesheet" href="./style.css?v=8">
-  <script type="module" src="./app.mjs?v=7"></script>
+  <link rel="stylesheet" href="./style.css?v=9">
+  <script type="module" src="./app.mjs?v=8"></script>
 </head>
 <body>
   <header class="masthead">
@@ -54,27 +54,41 @@
         </div>
         <button type="button" id="expand-maze" class="view-button expand-maze" aria-label="Full screen" title="Full screen" aria-controls="expanded-maze">
           <svg viewBox="0 0 28 28" aria-hidden="true">
-            <path data-view-icon="expand" d="M5 11V5h6m6 0h6v6m0 6v6h-6m-6 0H5v-6" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
-            <path data-view-icon="collapse" d="M5 11h6V5m6 0v6h6m0 6h-6v6m-6 0v-6H5" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" hidden/>
+            <g data-view-icon="expand" stroke="currentColor" stroke-linecap="round">
+              <path d="m18 18 7 7" stroke-width="4.5"/><circle cx="12" cy="12" r="8.5" fill="#fff3b8" stroke-width="2.5"/><path d="M8 12h8m-4-4v8" stroke-width="2.5"/>
+            </g>
+            <path data-view-icon="collapse" d="m7 7 14 14M21 7 7 21" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" hidden/>
           </svg>
           <span aria-hidden="true">Full screen</span>
         </button>
       </div>
       <section class="board" aria-label="Maze board">
         <svg id="maze" preserveAspectRatio="xMidYMid meet" role="group" tabindex="0" aria-label="Interactive maze" aria-describedby="maze-help"></svg>
-        <p id="maze-help" class="sr-only">Drag the star to the flag or the yellow dot to the star. You can also tap a connected space or use the arrow keys. When zoomed in, drag away from the player to move the board, or use Shift with the arrow keys.</p>
+        <p id="maze-help" class="sr-only">Drag the star to the flag or the yellow dot to the star. You can also tap a connected space or use the arrow keys. On a touchscreen, Challenge mazes have large arrow buttons for each open direction. When zoomed in, drag away from the player to move the board, or use Shift with the arrow keys.</p>
         <p id="status" class="sr-only" role="status"></p>
       </section>
       <section id="manual-controls" class="toolbar manual-controls" aria-label="Maze controls">
+        <div id="move-pad" class="move-pad" role="group" aria-label="Move through an open passage" hidden>
+          <svg class="pad-player" viewBox="0 0 40 40" aria-hidden="true">
+            <circle cx="20" cy="20" r="12" fill="#ffd766" stroke="#166457" stroke-width="3"/>
+            <path class="pad-flag" d="M15 28V12h13l-4 4 4 4H17v8Z" fill="white"/>
+            <path class="pad-star" d="m20 10 3 7 7 .6-5.2 4.9 1.5 7-6.3-3.8-6.3 3.8 1.5-7-5.2-4.9 7-.6Z" fill="white"/>
+          </svg>
+        </div>
         <button type="button" id="reset" class="action reset" aria-label="Reset maze" title="Reset maze">
-          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M13 16a16 16 0 1 1-3 15M13 7v10h10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 17a16 16 0 1 1-1 13M10 7v11h11" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 33V19h10l-3 4 3 4H23" fill="#168562" stroke="#124f40" stroke-width="2" stroke-linejoin="round"/></svg>
           <span aria-hidden="true">Reset</span>
         </button>
         <button type="button" id="watch" class="action watch" aria-label="Watch solution" title="Watch solution">
-          <svg viewBox="0 0 74 48" aria-hidden="true">
-            <path d="M5 30V5h44v7m0 9v22H5v-5 M17 5v22H5 M28 43V19h-8 M39 5v7 M40 25v18" class="mini-walls"/>
-            <path d="M4 34H19V16H50" class="mini-route" pathLength="100"/>
-            <path d="m57 16 13 8-13 8Z" class="watch-play"/>
+          <svg viewBox="0 0 98 52" aria-hidden="true">
+            <rect x="1" y="1" width="72" height="50" rx="9" fill="#fff9e5"/>
+            <path class="mini-walls" d="M7 31V8h59v16 M66 42v3H7 M7 28h10V8 M17 45v-4 M31 45V27h6 M31 8v6 M51 8v18h8 M52 45v-6"/>
+            <path class="mini-route" d="M10 37H24V20H44V33H63" pathLength="100"/>
+            <path d="M7 36v-9l7 1-2 2 2 2H8" fill="#13845b" stroke="#116044" stroke-width="1.4" stroke-linejoin="round"/>
+            <circle cx="64" cy="33" r="7" fill="#b84622"/>
+            <path d="m64 28 1.5 3.2 3.5.4-2.6 2.4.7 3.4-3.1-1.8-3.1 1.8.7-3.4-2.6-2.4 3.5-.4Z" fill="white"/>
+            <circle class="mini-pawn" r="3.4" fill="#ffda5f" stroke="#294536" stroke-width="1.6"/>
+            <path d="m80 15 15 10q1.5 1 0 2l-15 10q-2 1-2-1V16q0-2 2-1Z" fill="#ffdc74"/>
           </svg>
           <span aria-hidden="true">Watch</span>
         </button>

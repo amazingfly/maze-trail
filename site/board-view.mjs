@@ -1,6 +1,6 @@
-const levels = [1, 1.5, 2.25, 3.25, 4.5]
+const levels = [1, 1.5, 2.25, 3.25, 4.5, 6]
 
-export function setupBoardView(maze, bounds, trace) {
+export function setupBoardView(maze, bounds, trace, corridor) {
   const workspace = document.getElementById('workspace')
   const dialog = document.getElementById('expanded-maze')
   const expand = document.getElementById('expand-maze')
@@ -14,6 +14,7 @@ export function setupBoardView(maze, bounds, trace) {
   let center = [...middle]
   let level = 0
   let drag = null
+  let tracingLevel = null
 
   function viewBox() {
     if (!dialog.open) {
@@ -90,12 +91,23 @@ export function setupBoardView(maze, bounds, trace) {
     dialog.append(workspace)
     updateTools(true)
     dialog.showModal()
+    if (matchMedia('(any-pointer: coarse)').matches && !maze.classList.contains('is-solution')) {
+      const rect = maze.getBoundingClientRect()
+      const passagePixels = corridor * Math.min(rect.width / width, rect.height / height)
+      if (passagePixels > 0 && passagePixels < 32) {
+        const target = levels.findIndex(scale => passagePixels * scale >= 40)
+        level = target === -1 ? levels.length - 1 : target
+        center = [...trace.point]
+        updateTools(true)
+      }
+    }
     viewBox()
     resize.observe(maze)
     expand.focus({ preventScroll: true })
   })
   dialog.addEventListener('close', () => {
     resize.disconnect()
+    tracingLevel = null
     level = 0
     center = [...middle]
     releasePan()
@@ -143,4 +155,23 @@ export function setupBoardView(maze, bounds, trace) {
     event.preventDefault()
     panBy(direction[0] * width / levels[level] * .18, direction[1] * height / levels[level] * .18)
   })
+  return {
+    showOverview() {
+      if (!dialog.open) return
+      releasePan()
+      tracingLevel = level
+      level = 0
+      center = [...middle]
+      updateTools(true)
+      viewBox()
+    },
+    resumeTracing() {
+      if (!dialog.open || tracingLevel === null) return
+      level = tracingLevel
+      tracingLevel = null
+      center = [...trace.point]
+      updateTools(true)
+      viewBox()
+    },
+  }
 }

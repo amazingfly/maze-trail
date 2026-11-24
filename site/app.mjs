@@ -1,6 +1,6 @@
-import { setupBoardView } from './board-view.mjs?v=6'
+import { setupBoardView } from './board-view.mjs?v=7'
 import { solveMaze } from './solver.mjs'
-import { createTrace } from './trace.mjs?v=6'
+import { createTrace } from './trace.mjs?v=7'
 
 const example = 'mz1_jwgc6p4fhllup6bypbhlsuiqoa'
 const idPattern = /^mz1_[a-z2-7]{26}$/
@@ -125,7 +125,7 @@ function showMaze(data) {
     'stroke-width': .14 }, rays)
   const manual = setupTracing(data, manualGroup, [startPin, finishPin], rays, sparkle, width)
   const playback = setupPlayback(data, solutionGroup, width)
-  setupBoardView(maze, bounds, manual)
+  const view = setupBoardView(maze, bounds, manual, data.corridor)
 
   get('watch').addEventListener('click', () => {
     manual.release()
@@ -137,6 +137,7 @@ function showMaze(data) {
     maze.setAttribute('aria-label', 'Animated maze solution')
     get('manual-controls').hidden = true
     get('solution-controls').hidden = false
+    view.showOverview()
     playback.start(manual.reversed)
     get('play').focus({ preventScroll: true })
   })
@@ -150,9 +151,47 @@ function showMaze(data) {
     get('solution-controls').hidden = true
     get('manual-controls').hidden = false
     manual.render()
+    view.resumeTracing()
     status.textContent = manual.finished ? manual.success : 'Keep tracing.'
     get('watch').focus({ preventScroll: true })
   })
+}
+
+// Place each button on the same side of the dot as the corresponding passage.
+function setupMovePad(data, trace, step) {
+  if (data.difficulty !== 'challenge') return () => {}
+  const pad = get('move-pad')
+  const directions = ['right', 'down-right', 'down', 'down-left', 'left', 'up-left', 'up', 'up-right']
+  const buttons = directions.map((name, index) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.setAttribute('aria-label', `Move ${name}`)
+    const angle = index * Math.PI / 4
+    button.style.gridColumn = 2 + Math.round(Math.cos(angle))
+    button.style.gridRow = 2 + Math.round(Math.sin(angle))
+    button.classList.toggle('diagonal', index % 2 === 1)
+    const icon = draw('svg', { viewBox: '0 0 32 32', 'aria-hidden': 'true' }, button)
+    draw('path', { d: 'M5 13h12V7l10 9-10 9v-6H5Z', fill: 'currentColor',
+      stroke: 'currentColor', 'stroke-width': 2, 'stroke-linejoin': 'round' }, icon)
+    button.addEventListener('click', () => step(Number(button.dataset.cell)))
+    pad.append(button)
+    return button
+  })
+  pad.hidden = false
+  return () => {
+    const [cx, cy] = data.centers[trace.current()]
+    pad.classList.toggle('at-star', trace.reversed !== trace.finished)
+    pad.classList.toggle('at-flag', trace.reversed && trace.finished)
+    const available = new Set()
+    for (const [cell, [x, y]] of trace.finished ? [] : trace.exits) {
+      const angle = Math.atan2(y - cy, x - cx) * 180 / Math.PI
+      const button = buttons[(Math.round(angle / 45) + 8) % 8]
+      available.add(button)
+      button.dataset.cell = cell
+      button.querySelector('svg').style.transform = `rotate(${angle}deg)`
+    }
+    for (const button of buttons) button.disabled = !available.has(button)
+  }
 }
 
 function setupTracing(data, group, [flag, star], rays, sparkle, width) {
@@ -166,6 +205,12 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
   const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1])
   const playerPoint = () => trace.reversed && !trace.started ? star.center : trace.points.at(-1)
 
+  const renderPad = setupMovePad(data, trace, next => {
+    if (!active() || gesture || !trace.move(next)) return
+    changed()
+    followTrace()
+  })
+
   function positionStar(point, scale = 1) {
     star.token.setAttribute('transform', `translate(${point.join(' ')}) scale(${scale})`)
   }
@@ -176,6 +221,7 @@ function setupTracing(data, group, [flag, star], rays, sparkle, width) {
   }
 
   function render() {
+    renderPad()
     path.setAttribute('d', trace.started ? pathData(trace.points) : '')
     position(pawn, trace.points.at(-1))
     position(ripple, trace.points.at(-1))

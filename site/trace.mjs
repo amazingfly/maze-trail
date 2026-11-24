@@ -77,6 +77,7 @@ export function createTrace(data) {
   }
 
   return {
+    get exits() { return neighbors[current()] },
     cellAt,
     canMove: next => Boolean(passageTo(next)),
     move,
