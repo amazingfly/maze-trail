@@ -57,6 +57,20 @@ def build_book(book, records):
                      .replace("<!-- book-mazes -->", "\n".join(sections)), encoding="utf-8")
 
 
+def build_3d(output, records):
+    catalog = output / "books" / "dinosaur-adventures" / "catalog.json"
+    levels = []
+    for entry in json.loads(catalog.read_text(encoding="utf-8")):
+        data = records[entry["id"]]
+        levels.append({
+            **entry,
+            "title": data["title"].split(" · ")[0],
+            "difficulty": data["difficulty"],
+        })
+    (output / "3d" / "levels.json").write_text(
+        json.dumps(levels, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
@@ -95,6 +109,7 @@ def main():
                     ignore=lambda path, names: [selection.name] if Path(path) == data_dir else [])
     for book_catalog in (output / "books").glob("*/catalog.json"):
         build_book(book_catalog.parent, maze_data)
+    build_3d(output, maze_data)
     (output / "maze-index.json").write_text(json.dumps(catalog, separators=(",", ":")) + "\n",
                                             encoding="utf-8")
     index = (source / "index.html").read_text(encoding="utf-8")

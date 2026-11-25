@@ -15,6 +15,7 @@
   box-shadow: 0 5px 0 #d6d6a5;
 }
 .cover-art img { display: block; width: auto; max-width: 100%; height: auto; max-height: 78svh; }
+.cover-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .cover-button {
   display: inline-flex;
   align-items: center;
@@ -29,6 +30,7 @@
   font-weight: 850;
   text-decoration: none;
 }
+.cover-3d { background: #ffdc74; color: #173a28; padding-inline: 17px; box-shadow: 0 3px 0 #d3ac42; }
 .cover-button svg { width: 31px; color: #ffdc74; }
 .book-library, .book-group { scroll-margin-top: 12px; }
 .book-library h2 { margin: 0 0 5px; font-size: clamp(1.65rem, 5vw, 2.5rem); letter-spacing: -.04em; }

@@ -61,3 +61,11 @@ python3 scripts/export_mazes.py \
   --production-manifest ../mazeGen/production/dinosaur-mazes-v2/manifest.json \
   --book-catalog site/books/dinosaur-adventures/catalog.json
 ```
+
+## Dinosaur Adventures in 3D
+
+[Play the first-person game](https://amazingfly.github.io/maze-trail/3d/), or link directly to a printed page with `/3d/?page=2`. The Pages build generates the 3D level picker from the Dinosaur Adventures book catalog and serves the same maze records used by the 2D QR routes. The game reads the printed wall paths, cell polygons, and openings directly.
+
+Move with WASD or the up and down arrow keys. Drag to look, use the left and right arrow keys, or select **Mouse look** to capture the mouse. Hold Shift to jog. On touch screens, hold the movement buttons and drag the scene to look. Press M for the map, H for footprints, and Esc to pause. Finished pages are saved in the browser.
+
+The game code lives in `site/3d/`. Change materials and landmark models in `world.mjs`; collision and routing use the separate `layout.mjs`. The bundled Three.js dependency is version 0.187.0. Its license is in `site/3d/vendor/`.

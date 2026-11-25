@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Step inside the 100 printed Dinosaur Adventures mazes in first-person 3D.">
+  <meta name="theme-color" content="#122c27">
+  <title>Dinosaur Adventures 3D · Maze Trail</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="./game.css">
+</head>
+<body>
+  <main id="game" data-mode="menu">
+    <canvas id="view" aria-label="First-person 3D maze" tabindex="-1"></canvas>
+    <div class="shade" aria-hidden="true"></div>
+    <header class="top">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span> Maze Trail <span class="edition">3D</span></div>
+      <a class="button subtle" id="book-link" href="../books/dinosaur-adventures/">Book mazes</a>
+      <div class="game-actions" hidden>
+        <button id="mouse-look" type="button" title="Capture your mouse. Press Esc to release it.">Mouse look</button>
+        <button id="hint" type="button" aria-pressed="false" title="Toggle footprints (H)">Footprints</button>
+        <button id="map-toggle" type="button" aria-pressed="false" title="Toggle map (M)">Map</button>
+        <button id="pause" type="button" title="Pause (Esc)">Pause</button>
+      </div>
+    </header>
+
+    <section class="home" id="home" aria-labelledby="title">
+      <div class="eyebrow"><span></span> 100 Wonder Mazes</div>
+      <h1 id="title">DINOSAUR<br><em>ADVENTURES</em></h1>
+      <p>Step inside the mazes from your book. Follow the trail and find the golden gate.</p>
+      <form class="expedition" id="picker">
+        <label for="maze-choice">Choose your maze</label>
+        <select id="maze-choice" disabled><option>Loading mazes…</option></select>
+        <div class="launch">
+          <button class="primary" id="start" disabled>Explore maze</button>
+          <span id="progress"></span>
+        </div>
+      </form>
+      <p id="notice" role="status"></p>
+      <noscript>Turn on JavaScript to play, or open the book mazes above.</noscript>
+    </section>
+
+    <div class="preview-tag" id="preview-tag" hidden><span>OVERHEAD VIEW</span><strong id="preview-name"></strong></div>
+    <section class="hud" id="hud" aria-label="Expedition status" hidden>
+      <div class="location"><span id="level-page"></span><strong id="level-title"></strong><span id="mission">Find the golden gate</span></div>
+      <div class="map-panel" id="map-panel" hidden>
+        <canvas id="map" width="320" height="320" aria-label="Map showing your position and heading"></canvas>
+        <span><b></b> You <b></b> Exit</span>
+      </div>
+    </section>
+    <div class="reticle" aria-hidden="true" hidden></div>
+    <div class="controls" id="controls" hidden>
+      <p class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move <span>·</span> Drag or <kbd>←</kbd><kbd>→</kbd> Look <span>·</span> <kbd>⇧</kbd> Jog</p>
+      <p class="touch-controls">Hold to walk · Drag to look</p>
+      <div class="pad" aria-label="Movement">
+        <button class="forward" type="button" data-key="KeyW" aria-label="Walk forward">↑</button>
+        <button type="button" data-key="KeyA" aria-label="Step left">←</button>
+        <button type="button" data-key="KeyS" aria-label="Walk backward">↓</button>
+        <button type="button" data-key="KeyD" aria-label="Step right">→</button>
+      </div>
+    </div>
+
+    <dialog id="panel" aria-labelledby="panel-title">
+      <div class="eyebrow" id="panel-label"></div>
+      <h2 id="panel-title"></h2>
+      <p id="panel-copy"></p>
+      <div class="panel-actions">
+        <button type="button" class="primary" id="continue"></button>
+        <button type="button" id="restart">Restart maze</button>
+        <button type="button" id="menu">Choose a maze</button>
+      </div>
+    </dialog>
+  </main>
+  <script type="module" src="./game.mjs"></script>
+</body>
+</html>
