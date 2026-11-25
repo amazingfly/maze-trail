@@ -358,3 +358,28 @@ body:has(.expanded-maze[open]) { overflow: hidden; }
     .workspace .manual-controls:has(.move-pad:not([hidden])) .action { min-height: 44px; }
   }
 }
+
+.masthead-actions { display: flex; align-items: center; gap: 6px; }
+.book-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 9px;
+  border: 1px solid #bfdbc7;
+  border-radius: 12px;
+  background: #e7f3e5;
+  color: #1a543d;
+  font-weight: 800;
+  text-decoration: none;
+}
+.book-link svg { width: 25px; flex: none; }
+.book-link:hover { background: #d8edd6; }
+@media (max-width: 460px) {
+  .masthead-actions .random-button { width: 44px; justify-content: center; padding: 0; }
+  .masthead-actions .random-button span { display: none; }
+}
+@media (max-width: 345px) {
+  .book-link { font-size: .85rem; padding: 0 6px; }
+  .wordmark { font-size: 1rem; gap: 5px; }
+}

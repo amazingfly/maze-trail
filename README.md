@@ -50,3 +50,14 @@ python3 scripts/export_mazes.py --production-manifest ../mazeGen/production/dino
 ```
 
 Commit the exported records and `site/data/selector-pages.json`. The build uses that list for the random selector. Every previously exported QR route is still built.
+
+
+### Dinosaur Adventures title page
+
+The printed title-page QR points to [100 Wonder Mazes: Dinosaur Adventures](https://amazingfly.github.io/maze-trail/books/dinosaur-adventures/). Its book catalog stores the printed page numbers and IDs independently of the random selector. To update the catalog while finalizing this edition, export the matching production manifest.
+
+```sh
+python3 scripts/export_mazes.py \
+  --production-manifest ../mazeGen/production/dinosaur-mazes-v2/manifest.json \
+  --book-catalog site/books/dinosaur-adventures/catalog.json
+```

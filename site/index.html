@@ -6,8 +6,8 @@
   <meta name="description" content="Trace your printed maze or watch the solution come to life.">
   <meta name="theme-color" content="#fffaf0">
   <title>Maze Trail</title>
-  <link rel="stylesheet" href="./style.css?v=9">
-  <script type="module" src="./app.mjs?v=8"></script>
+  <link rel="stylesheet" href="./style.css?v=10">
+  <script type="module" src="./app.mjs?v=9"></script>
 </head>
 <body>
   <header class="masthead">
@@ -15,13 +15,22 @@
       <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M12 29V11h17v17H19V18h5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="29" r="2.4" fill="currentColor"/></svg>
       Maze Trail
     </a>
-    <button type="button" id="open-picker" class="random-button" aria-haspopup="dialog" aria-controls="maze-picker" hidden>
-      <svg viewBox="0 0 28 28" aria-hidden="true">
-        <rect x="3.5" y="3.5" width="21" height="21" rx="5" fill="none" stroke="currentColor" stroke-width="2.5" transform="rotate(-8 14 14)"/>
-        <path d="M9 9h.01M19 9h.01M14 14h.01M9 19h.01M19 19h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-      </svg>
-      Random maze
-    </button>
+    <nav class="masthead-actions" aria-label="Find another maze">
+      <a class="book-link" href="./books/dinosaur-adventures/#mazes" aria-label="Choose a maze from Dinosaur Adventures">
+        <svg viewBox="0 0 28 28" aria-hidden="true">
+          <path d="M14 7C10 4 6 4 3 5v16c4-1 8-1 11 2 3-3 7-3 11-2V5c-3-1-7-1-11 2v16" fill="#fff1b4" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M6 10c2-.3 3.5 0 5 1M17 11c1.5-1 3-1.3 5-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <span>Book mazes</span>
+      </a>
+      <button type="button" id="open-picker" aria-label="Random maze" class="random-button" aria-haspopup="dialog" aria-controls="maze-picker" hidden>
+        <svg viewBox="0 0 28 28" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="21" height="21" rx="5" fill="none" stroke="currentColor" stroke-width="2.5" transform="rotate(-8 14 14)"/>
+          <path d="M9 9h.01M19 9h.01M14 14h.01M9 19h.01M19 19h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <span>Random maze</span>
+      </button>
+    </nav>
   </header>
   <dialog id="maze-picker" class="maze-picker" aria-labelledby="picker-title">
     <div class="picker-header">

@@ -108,10 +108,14 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / "site" / "data")
     parser.add_argument("--production-manifest", type=Path,
                         help="Export this production book and set the selector to its maze pages")
+    parser.add_argument("--book-catalog", type=Path,
+                        help="Save printed page numbers and IDs for this book's website")
     parser.add_argument("ids", nargs="*", help="Optional mz1_ page IDs to export")
     args = parser.parse_args()
     if args.production_manifest and args.ids:
         parser.error("choose either a production manifest or individual page IDs")
+    if args.book_catalog and not args.production_manifest:
+        parser.error("--book-catalog requires a production manifest")
 
     sys.path.insert(0, str(args.mazegen.resolve()))
     from mazegen.assets import load_svg
@@ -127,9 +131,9 @@ def main():
         manifest = json.loads(args.production_manifest.read_text(encoding="utf-8"))
         if manifest["schema"] != "mazegen-production-v1":
             parser.error("expected a MazeGen production manifest")
-        production = {parse_id(page["page_id"]): page["difficulty"]
-                      for page in manifest["pages"] if page["kind"] == "maze"}
-        if not production or len(production) != sum(page["kind"] == "maze" for page in manifest["pages"]):
+        maze_pages = [page for page in manifest["pages"] if page["kind"] == "maze"]
+        production = {parse_id(page["page_id"]): page["difficulty"] for page in maze_pages}
+        if not production or len(production) != len(maze_pages):
             parser.error("production maze pages must have unique IDs")
         ids = list(production)
     files = ([pages / f"{parse_id(value)}.json" for value in ids] if ids
@@ -162,6 +166,11 @@ def main():
         temp = selection.with_suffix(".tmp")
         temp.write_text(json.dumps(ids, indent=2) + "\n", encoding="utf-8")
         temp.replace(selection)
+        if args.book_catalog:
+            catalog = [{"page": page["number"], "id": parse_id(page["page_id"])} for page in maze_pages]
+            temp = args.book_catalog.with_suffix(".tmp")
+            temp.write_text(json.dumps(catalog, indent=2) + "\n", encoding="utf-8")
+            temp.replace(args.book_catalog)
     print(f"Exported {len(files)} maze pages and {len(exported)} unique illustrations to {args.output}")
 
 

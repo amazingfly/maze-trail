@@ -1,0 +1,86 @@
+.book {
+  background: #f6f3df;
+}
+.book-main { width: min(960px, calc(100% - 24px)); margin: 12px auto 36px; }
+.book-cover {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+.cover-art {
+  display: block;
+  overflow: hidden;
+  border-radius: 20px;
+  box-shadow: 0 5px 0 #d6d6a5;
+}
+.cover-art img { display: block; width: auto; max-width: 100%; height: auto; max-height: 78svh; }
+.cover-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 8px 21px 8px 12px;
+  border-radius: 16px;
+  background: #075e42;
+  box-shadow: 0 3px 0 #03452e;
+  color: #fff;
+  font-size: 1.12rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+.cover-button svg { width: 31px; color: #ffdc74; }
+.book-library, .book-group { scroll-margin-top: 12px; }
+.book-library h2 { margin: 0 0 5px; font-size: clamp(1.65rem, 5vw, 2.5rem); letter-spacing: -.04em; }
+.book-library p { margin: 0 0 14px; }
+.book-jumps { display: flex; flex-wrap: wrap; gap: 7px; }
+.book-jumps a {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 52px;
+  padding: 3px 12px 6px;
+  border: 1px solid #c2d8aa;
+  border-radius: 12px;
+  background: #e4efcf;
+  color: #174831;
+  font-weight: 800;
+  text-decoration: none;
+}
+.book-jumps span, .book-group h3 > span { color: #167553; }
+.book-group h3 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 9px; margin: 22px 0 8px; }
+.book-group small { font-weight: 650; }
+.maze-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 104px), 1fr));
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.maze-card {
+  display: grid;
+  grid-template-rows: 48px auto 1fr;
+  justify-items: center;
+  height: 100%;
+  gap: 4px;
+  padding: 8px 5px;
+  border: 1px solid #d4ddba;
+  border-radius: 14px;
+  background: #fffdf3;
+  color: var(--ink);
+  text-align: center;
+  text-decoration: none;
+}
+.maze-card:hover, .book-jumps a:hover { background: #d8edcb; }
+.maze-card svg {
+  width: 90%;
+  height: 100%;
+  fill: none;
+  stroke: #28593d;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.maze-page { color: #1c593f; font-size: 1.35rem; font-weight: 900; line-height: 1; }
+.maze-name { font-size: .78rem; font-weight: 700; overflow-wrap: anywhere; }
