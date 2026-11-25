@@ -15,7 +15,7 @@ python3 scripts/build_site.py --output "$preview_dir"
 python3 -m http.server 8000 --directory "$preview_dir"
 ```
 
-Open `http://localhost:8000/` for the example or `http://localhost:8000/maze/mz1_jwgc6p4fhllup6bypbhlsuiqoa/` for its printed route.
+Open `http://localhost:8000/` for the example or `http://localhost:8000/maze/mz1_t5vc6q2ixcw2ye2q2ozzkshfhu/` for its printed route.
 
 ## GitHub Pages
 
@@ -59,7 +59,8 @@ The printed title-page QR points to [100 Wonder Mazes: Dinosaur Adventures](http
 
 ```sh
 python3 scripts/export_mazes.py \
-  --production-manifest ../mazeGen/production/dinosaur-mazes-v2/manifest.json \
+  --library ../mazeGen/production/dinosaur-mazes-final/page-library \
+  --production-manifest ../mazeGen/production/dinosaur-mazes-final/manifest.json \
   --book-catalog site/books/dinosaur-adventures/catalog.json
 ```
 

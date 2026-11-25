@@ -2,7 +2,7 @@ import { setupBoardView } from './board-view.mjs?v=7'
 import { solveMaze } from './solver.mjs'
 import { createTrace } from './trace.mjs?v=7'
 
-const example = 'mz1_jwgc6p4fhllup6bypbhlsuiqoa'
+const example = 'mz1_t5vc6q2ixcw2ye2q2ozzkshfhu'
 const idPattern = /^mz1_[a-z2-7]{26}$/
 const root = new URL('./', import.meta.url)
 const route = location.pathname.slice(root.pathname.length).replace(/(^|\/)index\.html$/, '').replace(/\/$/, '')
@@ -488,7 +488,7 @@ function setupMazePicker() {
     message.textContent = 'Finding mazes…'
     message.hidden = false
     try {
-      const response = await fetch(new URL('maze-index.json?v=8', root))
+      const response = await fetch(new URL('maze-index.json?v=9', root))
       if (!response.ok) throw new Error('Maze catalog unavailable')
       const entries = await response.json()
       catalog = Object.fromEntries(buttons.map(({ dataset: { difficulty } }) => [
