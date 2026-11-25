@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGE_ID = re.compile(r"mz1_[a-z2-7]{26}")
@@ -67,8 +68,17 @@ def build_3d(output, records):
             "title": data["title"].split(" · ")[0],
             "difficulty": data["difficulty"],
         })
-    (output / "3d" / "levels.json").write_text(
+    game = output / "3d"
+    (game / "levels.json").write_text(
         json.dumps(levels, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    subprocess.run(["npm", "run", "build:3d", "--", f"--outdir={game}"],
+                   cwd=ROOT, check=True)
+    for dependency, filename, destination in (
+        ("@babylonjs/core", "license.md", "BABYLON-LICENSE.txt"),
+        ("@babylonjs/core", "NOTICE.md", "BABYLON-NOTICE.txt"),
+        ("earcut", "LICENSE", "EARCUT-LICENSE.txt"),
+    ):
+        shutil.copyfile(ROOT / "node_modules" / dependency / filename, game / destination)
 
 
 def main():

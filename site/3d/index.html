@@ -8,11 +8,11 @@
   <title>Dinosaur Adventures 3D · Maze Trail</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./game.css">
+  <link rel="stylesheet" href="./game.css?v=2">
 </head>
 <body>
   <main id="game" data-mode="menu">
-    <canvas id="view" aria-label="First-person 3D maze" tabindex="-1"></canvas>
+    <div id="view" role="img" aria-label="First-person 3D maze" tabindex="-1"><canvas aria-hidden="true"></canvas></div>
     <div class="shade" aria-hidden="true"></div>
     <header class="top">
       <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span> Maze Trail <span class="edition">3D</span></div>
@@ -72,6 +72,6 @@
       </div>
     </dialog>
   </main>
-  <script type="module" src="./game.mjs"></script>
+  <script type="module" src="./game.mjs?v=2"></script>
 </body>
 </html>

@@ -384,8 +384,9 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs'), readJSON('./levels.json')])
-  world = new World(view)
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=2'), readJSON('./levels.json')])
+  const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
+  world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()
   entries = records.map((entry, i) => ({ ...entry, option: new Option('', String(i)) }))
   choice.replaceChildren()

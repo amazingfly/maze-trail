@@ -6,9 +6,10 @@ The QR uses MazeGen’s printed `mz1_` page ID. That ID is a hash of the archive
 
 ## Preview
 
-From this directory, build into a fresh folder and serve it.
+From this directory, install the locked npm dependencies, build into a fresh folder, and serve it.
 
 ```sh
+npm ci
 preview_dir="$(mktemp -d /tmp/maze-trail.XXXXXX)"
 python3 scripts/build_site.py --output "$preview_dir"
 python3 -m http.server 8000 --directory "$preview_dir"
@@ -68,4 +69,4 @@ python3 scripts/export_mazes.py \
 
 Move with WASD or the up and down arrow keys. Drag to look, use the left and right arrow keys, or select **Mouse look** to capture the mouse. Hold Shift to jog. On touch screens, hold the movement buttons and drag the scene to look. Press M for the map, H for footprints, and Esc to pause. Finished pages are saved in the browser.
 
-The game code lives in `site/3d/`. Change materials and landmark models in `world.mjs`; collision and routing use the separate `layout.mjs`. The bundled Three.js dependency is version 0.187.0. Its license is in `site/3d/vendor/`.
+The game code lives in `site/3d/`. Change materials and landmark models in `world.mjs`; collision and routing use the separate `layout.mjs`. The build bundles Babylon.js and selects WebGPU when it initializes successfully. It falls back to WebGL if WebGPU fails to start or the graphics device is lost. Add `?renderer=webgl` to force WebGL when testing. Babylon.js is pinned in `package-lock.json`, and the browser loads the bundled engine from the same site.

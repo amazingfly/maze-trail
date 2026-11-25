@@ -32,7 +32,8 @@ a { color: inherit; text-decoration: none; }
 
 #game { min-height: 100svh; isolation: isolate; position: relative; overflow: hidden; }
 #view, .shade { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; }
-#view { display: block; background: #517764; touch-action: none; outline: none; }
+#view { background: #517764; touch-action: none; outline: none; }
+#view canvas { display: block; width: 100%; height: 100%; }
 .shade {
   z-index: -1; pointer-events: none;
   background: linear-gradient(90deg, #0c231cfa 2%, #0d261ce8 25%, #0c261b98 43%, transparent 69%),
