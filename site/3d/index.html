@@ -8,7 +8,7 @@
   <title>Dinosaur Adventures 3D · Maze Trail</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./game.css?v=2">
+  <link rel="stylesheet" href="./game.css?v=3">
 </head>
 <body>
   <main id="game" data-mode="menu">
@@ -32,8 +32,13 @@
       <form class="expedition" id="picker">
         <label for="maze-choice">Choose your maze</label>
         <select id="maze-choice" disabled><option>Loading mazes…</option></select>
+        <label for="launch-display">Display mode</label>
+        <select id="launch-display">
+          <option value="fullscreen">Fullscreen</option>
+          <option value="browser">In browser</option>
+        </select>
         <div class="launch">
-          <button class="primary" id="start" disabled>Explore maze</button>
+          <button class="primary" id="start" disabled>Play</button>
           <span id="progress"></span>
         </div>
       </form>
@@ -51,7 +56,7 @@
     </section>
     <div class="reticle" aria-hidden="true" hidden></div>
     <div class="controls" id="controls" hidden>
-      <p class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move <span>·</span> Drag or <kbd>←</kbd><kbd>→</kbd> Look <span>·</span> <kbd>⇧</kbd> Jog</p>
+      <p class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move <span>·</span> <span id="look-controls">Drag or ← → to look</span> <span>·</span> <kbd>⇧</kbd> Jog <span>·</span> <kbd>Esc</kbd> Pause</p>
       <p class="touch-controls">Hold to walk · Drag to look</p>
       <div class="pad" aria-label="Movement">
         <button class="forward" type="button" data-key="KeyW" aria-label="Walk forward">↑</button>
@@ -65,6 +70,17 @@
       <div class="eyebrow" id="panel-label"></div>
       <h2 id="panel-title"></h2>
       <p id="panel-copy"></p>
+      <fieldset id="pause-settings" class="pause-settings">
+        <legend>Settings</legend>
+        <label for="pause-display">Display mode</label>
+        <select id="pause-display">
+          <option value="fullscreen">Fullscreen</option>
+          <option value="browser">In browser</option>
+        </select>
+        <label class="setting-check mouse-setting"><input id="capture-mouse" type="checkbox" checked> Capture mouse on play</label>
+        <label class="setting-check"><input id="pause-map" type="checkbox"> Show map</label>
+        <label class="setting-check"><input id="pause-hint" type="checkbox"> Show footprints</label>
+      </fieldset>
       <div class="panel-actions">
         <button type="button" class="primary" id="continue"></button>
         <button type="button" id="restart">Restart maze</button>
@@ -72,6 +88,6 @@
       </div>
     </dialog>
   </main>
-  <script type="module" src="./game.mjs?v=4"></script>
+  <script type="module" src="./game.mjs?v=5"></script>
 </body>
 </html>

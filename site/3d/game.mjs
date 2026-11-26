@@ -19,6 +19,10 @@ const moveKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowRight
 const keys = new Set()
 const touches = new Map()
 const storageKey = 'maze-trail:dinosaur-3d:v2'
+const settingsKey = 'maze-trail:dinosaur-3d:settings'
+const launchDisplay = byId('launch-display')
+const pauseDisplay = byId('pause-display')
+const captureMouse = byId('capture-mouse')
 const dataPath = '../data/'
 const cache = new Map()
 
@@ -28,11 +32,35 @@ let mode = 'menu'
 let footprints = false, showMap = true, hintCell
 let drag, hadLock = false, lastFrame = 0, frame
 let completed = new Set()
+let display = 'fullscreen', autoCapture = true
+let wasFullscreen = false
 try {
   const saved = JSON.parse(localStorage.getItem(storageKey))
   if (Array.isArray(saved)) completed = new Set(saved)
+  const settings = JSON.parse(localStorage.getItem(settingsKey))
+  if (settings?.display === 'browser') display = 'browser'
+  if (settings?.autoCapture === false) autoCapture = false
 } catch {
   // Play remains available when storage is restricted.
+}
+
+launchDisplay.value = pauseDisplay.value = display
+captureMouse.checked = autoCapture
+
+function saveSettings() {
+  try { localStorage.setItem(settingsKey, JSON.stringify({ display, autoCapture })) } catch {}
+}
+
+function leaveFullscreen() {
+  if (document.fullscreenElement === game) document.exitFullscreen().catch(() => {})
+}
+
+function activateDisplay() {
+  // Fullscreen consumes the click's transient activation, so ask for pointer lock first.
+  if (autoCapture) lockPointer()
+  if (display === 'fullscreen' && !document.fullscreenElement && document.fullscreenEnabled) {
+    game.requestFullscreen().catch(() => {})
+  }
 }
 
 async function readJSON(url) {
@@ -125,6 +153,8 @@ function syncAssists() {
   byId('hint').setAttribute('aria-pressed', String(footprints))
   byId('map-toggle').setAttribute('aria-pressed', String(showMap))
   byId('map-panel').hidden = !showMap
+  byId('pause-map').checked = showMap
+  byId('pause-hint').checked = footprints
   hintCell = undefined
   world.setHint([])
   if (mode === 'play') paint()
@@ -144,6 +174,7 @@ function enter(reset) {
   setMode('play')
   syncAssists()
   view.focus({ preventScroll: true })
+  activateDisplay()
   lastFrame = performance.now()
   cancelAnimationFrame(frame)
   frame = requestAnimationFrame(tick)
@@ -161,22 +192,25 @@ function openPanel(finished) {
     progress()
   }
   byId('panel-label').textContent = finished ? `Page ${entry.page} complete` : `Page ${entry.page}`
-  byId('panel-title').textContent = finished ? 'You found the gate!' : 'Taking a break?'
+  byId('panel-title').textContent = finished ? 'You found the gate!' : 'Paused'
   byId('panel-copy').textContent = finished ? `${entry.title} is complete. Explore another maze or walk this one again.` :
     'Your place is saved while you take a break.'
-  byId('continue').textContent = finished ? 'Next maze' : 'Keep exploring'
+  byId('continue').textContent = finished ? 'Next maze' : 'Resume'
+  byId('pause-settings').hidden = finished
+  byId('menu').textContent = finished ? 'Choose a maze' : 'Quit to maze picker'
   byId('continue').hidden = finished && selection === entries.length - 1
   panel.showModal()
   const focus = byId('continue').hidden ? byId('menu') : byId('continue')
   focus.focus()
 }
 
-function goHome() {
+function goHome(exitFullscreen = true) {
   if (panel.open) panel.close()
   cancelAnimationFrame(frame)
   clearInput()
   unlockPointer()
   setMode('menu')
+  if (exitFullscreen) leaveFullscreen()
   world?.resize()
   world?.showPreview()
   choice.focus()
@@ -294,6 +328,27 @@ byId('picker').addEventListener('submit', event => {
   enter(true)
 })
 choice.addEventListener('change', () => choose(Number(choice.value)))
+for (const select of [launchDisplay, pauseDisplay]) {
+  select.addEventListener('change', () => {
+    display = select.value
+    launchDisplay.value = pauseDisplay.value = display
+    saveSettings()
+    if (display === 'browser') leaveFullscreen()
+  })
+}
+captureMouse.addEventListener('change', () => {
+  autoCapture = captureMouse.checked
+  saveSettings()
+})
+byId('pause-map').addEventListener('change', event => {
+  showMap = event.target.checked
+  syncAssists()
+  if (showMap) drawMap()
+})
+byId('pause-hint').addEventListener('change', event => {
+  footprints = event.target.checked
+  syncAssists()
+})
 byId('mouse-look').addEventListener('click', lockPointer)
 byId('pause').addEventListener('click', () => { if (mode === 'play') openPanel(false) })
 byId('hint').addEventListener('click', () => {
@@ -309,16 +364,16 @@ byId('map-toggle').addEventListener('click', () => {
 byId('continue').addEventListener('click', async () => {
   if (mode === 'paused') enter(false)
   else if (mode === 'complete' && selection + 1 < entries.length) {
-    goHome()
+    goHome(false)
     if (await choose(selection + 1)) enter(true)
+    else if (mode === 'menu') leaveFullscreen()
   }
 })
 byId('restart').addEventListener('click', () => enter(true))
-byId('menu').addEventListener('click', goHome)
+byId('menu').addEventListener('click', () => goHome())
 panel.addEventListener('cancel', event => {
   event.preventDefault()
-  if (mode === 'paused') enter(false)
-  else goHome()
+  if (mode === 'complete') goHome()
 })
 window.addEventListener('keydown', event => {
   if (mode !== 'play' || event.ctrlKey || event.metaKey || event.altKey) return
@@ -339,10 +394,19 @@ window.addEventListener('blur', clearInput)
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && mode === 'play') openPanel(false)
 })
+document.addEventListener('fullscreenchange', () => {
+  const fullscreen = document.fullscreenElement === game
+  const exited = wasFullscreen && !fullscreen
+  wasFullscreen = fullscreen
+  if (fullscreen && (display === 'browser' || mode === 'menu')) leaveFullscreen()
+  if (exited && mode === 'play') openPanel(false)
+})
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === view
   if (hadLock && !locked && mode === 'play') openPanel(false)
   hadLock = locked
+  byId('look-controls').textContent = locked ? 'Mouse to look' : 'Drag or ← → to look'
+  if (locked && mode !== 'play') unlockPointer()
 })
 document.addEventListener('mousemove', event => {
   if (mode === 'play' && document.pointerLockElement === view) {
