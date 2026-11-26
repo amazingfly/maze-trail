@@ -3,7 +3,8 @@ import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera.js'
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight.js'
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight.js'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js'
-import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture.js'
+import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder.js'
+import { fern, creeper, broadleaf } from './flora.mjs'
 import { Texture } from '@babylonjs/core/Materials/Textures/texture.js'
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color.js'
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector.js'
@@ -22,8 +23,7 @@ import earcut from 'earcut'
 
 // Scene materials and landmark models live here so artwork can change independently of gameplay.
 const colors = {
-  sky: 0xffe2ad, earth: 0x264d43, wall: 0x24857b, wallShade: 0x206d6a,
-  cap: 0xffbb6f, plinth: 0x163d39, stripe: 0x73c5b2, path: 0xdba068,
+  sky: 0xe3d4b4, earth: 0x586844, path: 0xfff2dc,
   entry: 0x9febaf, exit: 0xffcf4d,
 }
 const eye = .65
@@ -76,61 +76,97 @@ function addBatch(scene, name, build, options, items, color = 0xffffff) {
     })
     mesh.thinInstanceSetBuffer('color', tints, 4)
   }
+  return mesh
+}
+
+function texture(scene, name) {
+  const map = new Texture(new URL(`./environment/${name}.webp`, import.meta.url).href, scene)
+  map.anisotropicFilteringLevel = 4
+  return map
 }
 
 function wallMeshes(scene, layout) {
-  const panels = [], caps = [], plinths = [], stripes = [], posts = [], rims = []
-  const joints = new Map()
-  const width = layout.wallWidth
-  for (const [[ax, az], [bx, bz]] of layout.segments) {
-    const dx = bx - ax
-    const dz = bz - az
-    const length = Math.hypot(dx, dz)
-    const yaw = -Math.atan2(dz, dx)
-    const x = (ax + bx) / 2
-    const z = (az + bz) / 2
-    const wallTint = Math.abs(dx) > Math.abs(dz) ? colors.wall : colors.wallShade
-    panels.push({ at: [x, wallHeight / 2, z], scale: [length, wallHeight, width], yaw, tint: wallTint })
-    caps.push({ at: [x, wallHeight, z], scale: [length, .055, width * 1.15], yaw })
-    plinths.push({ at: [x, .053, z], scale: [length, .106, width * 1.05], yaw })
-    stripes.push({ at: [x, .785, z], scale: [length, .025, width * 1.04], yaw })
-    joints.set(`${ax},${az}`, [ax, az])
-    joints.set(`${bx},${bz}`, [bx, bz])
+  const positions = [], indices = [], uvs = [], normals = [], colors = []
+  const vines = [], ferns = [], bushes = [], stones = [], pillars = []
+  const ends = new Map()
+  let seed = layout.data.centers.length
+  const random = () => ((seed = (Math.imul(seed,1664525)+1013904223) >>> 0) / 4294967296)
+  const half = layout.wallWidth / 2
+  let distance = 0
+  for (const [[ax,az],[bx,bz]] of layout.segments) {
+    const length = Math.hypot(bx-ax,bz-az)
+    const nx = (az-bz)/length, nz = (bx-ax)/length
+    const top = (x,z) => wallHeight + .021*Math.sin(4*x+2*z) + .012*Math.sin(9*z-3*x)
+    function quad(points, normal, light, uv) {
+      const start = positions.length/3
+      points.forEach((point,i) => {
+        positions.push(...point)
+        normals.push(...normal)
+        colors.push(light[i],light[i],light[i],1)
+        uvs.push(...uv[i])
+      })
+      indices.push(start,start+1,start+2,start,start+2,start+3)
+    }
+    for (const [x,z] of [[ax,az],[bx,bz]]) {
+      const key = x + ',' + z
+      const end = ends.get(key)
+      if (end) end.count++
+      else ends.set(key,{x,z,count:1})
+    }
+    const u = distance/1.36, v = (distance+length)/1.36
+    for (const sign of [-1,1]) {
+      const x=ax+sign*nx*half,z=az+sign*nz*half,xx=bx+sign*nx*half,zz=bz+sign*nz*half
+      quad([[x,0,z],[xx,0,zz],[xx,top(bx,bz),zz],[x,top(ax,az),z]],
+        [sign*nx,0,sign*nz],[.60,.60,1,1],[[u,0],[v,0],[v,.88],[u,.88]])
+      if (random()<length*2.45) {
+        const t=random(), size=.63+.55*random()
+        vines.push({at:[x+(xx-x)*t+.004*sign*nx,top(ax,az),z+(zz-z)*t+.004*sign*nz],
+          scale:[size,size,size],yaw:Math.atan2(sign*nx,sign*nz)})
+      }
+      if (random()<length*.75) {
+        const t=random(), size=.10+.13*random()
+        const at=[x+(xx-x)*t,0,z+(zz-z)*t]
+        bushes.push({at,scale:[size*1.5,size*2.0,size*1.5],yaw:random()*6})
+        stones.push({at,scale:[size*.78,size*.48,size*.64],yaw:random()*6,tint:random()<.5?0x787354:0x958475})
+        if(random()<.58) ferns.push({at,scale:[size*1.1,size*1.5,size*1.1],yaw:random()*6})
+      }
+    }
+    const pts=[[ax+nx*half,top(ax,az),az+nz*half],[bx+nx*half,top(bx,bz),bz+nz*half],
+      [bx-nx*half,top(bx,bz),bz-nz*half],[ax-nx*half,top(ax,az),az-nz*half]]
+    quad(pts,[0,1,0],[.84,.84,.84,.84],pts.map(([x,,z])=>[x,z]))
+    distance+=length
   }
-  for (const [x, z] of joints.values()) {
-    posts.push({ at: [x, wallHeight / 2, z], scale: [width / 2, wallHeight, width / 2] })
-    rims.push({ at: [x, wallHeight + .001, z], scale: [width * .575, .055, width * .575] })
+  for(const {x,z,count} of ends.values()) {
+    if(count===2) continue
+    pillars.push({at:[x,.49,z],scale:[half*1.06,.98,half*1.06],yaw:0})
   }
-  const column = { diameter: 2, height: 1, tessellation: 8 }
-  addBatch(scene, 'walls', CreateBox, {}, panels)
-  addBatch(scene, 'wall caps', CreateBox, {}, caps, colors.cap)
-  addBatch(scene, 'wall bases', CreateBox, {}, plinths, colors.plinth)
-  addBatch(scene, 'wall stripes', CreateBox, {}, stripes, colors.stripe)
-  addBatch(scene, 'wall joints', CreateCylinder, column, posts, colors.wallShade)
-  addBatch(scene, 'joint caps', CreateCylinder, column, rims, colors.cap)
+  addBatch(scene,'exposed rock ends',CreateCylinder,{diameter:2,height:1,tessellation:7},pillars,0x94775a)
+  const walls=new Mesh('weathered sandstone',scene)
+  const data=new VertexData()
+  Object.assign(data,{positions,indices,uvs,normals,colors})
+  data.applyToMesh(walls)
+  walls.material=surface(scene,'sedimentary rock',0xfff6e5)
+  walls.material.diffuseTexture=texture(scene,'strata')
+  walls.material.backFaceCulling=false
+  walls.material.emissiveColor=color3(0x241d12)
+  for (const [name,build,items] of [['hanging vines',creeper,vines],['trail ferns',fern,ferns],['understory shrubs',broadleaf,bushes]]) {
+    const mesh=addBatch(scene,name,build,{},items)
+    if(mesh) mesh.material.backFaceCulling=false
+  }
+  addBatch(scene,'trail rocks',CreateIcoSphere,{subdivisions:1},stones)
 }
 
-function groundTexture(scene) {
-  const texture = new DynamicTexture('floor tiles', 128, scene, true, Texture.TRILINEAR_SAMPLINGMODE)
-  const ctx = texture.getContext()
-  ctx.fillStyle = '#eee0be'
-  ctx.fillRect(0, 0, 128, 128)
-  ctx.fillStyle = '#e3d1ae'
-  ctx.fillRect(64, 0, 64, 64)
-  ctx.fillRect(0, 64, 64, 64)
-  ctx.strokeStyle = '#bfa17b'
-  ctx.lineWidth = 1.5
-  ctx.strokeRect(0, 0, 128, 128)
-  ctx.beginPath()
-  ctx.moveTo(64, 0)
-  ctx.lineTo(64, 128)
-  ctx.moveTo(0, 64)
-  ctx.lineTo(128, 64)
-  ctx.stroke()
-  texture.wrapU = texture.wrapV = Texture.WRAP_ADDRESSMODE
-  texture.anisotropicFilteringLevel = 4
-  texture.update()
-  return texture
+function skyDome(scene) {
+  const dome=CreateSphere('cloud sky',{diameter:200,segments:32},scene)
+  dome.infiniteDistance=true
+  dome.isPickable=false
+  dome.applyFog=false
+  const mat=surface(scene,'sunlit sky',0xffffff)
+  mat.disableLighting=true
+  mat.backFaceCulling=false
+  mat.emissiveTexture=texture(scene,'sky')
+  mat.emissiveTexture.vScale=-1
+  dome.material=mat
 }
 
 function floorMesh(scene, { polygons }) {
@@ -141,7 +177,7 @@ function floorMesh(scene, { polygons }) {
     for (const [x, z] of polygon) {
       positions.push(x, 0, z)
       normals.push(0, 1, 0)
-      uvs.push(x, z)
+      uvs.push(x*.66, z*.66)
     }
     for (const index of earcut(polygon.flat())) indices.push(offset + index)
   }
@@ -149,8 +185,8 @@ function floorMesh(scene, { polygons }) {
   const geometry = new VertexData()
   Object.assign(geometry, { positions, normals, uvs, indices })
   geometry.applyToMesh(mesh)
-  const material = surface(scene, 'tiles', colors.path)
-  material.diffuseTexture = groundTexture(scene)
+  const material = surface(scene, 'sandy trail', colors.path)
+  material.diffuseTexture = texture(scene,'trail')
   material.backFaceCulling = false
   mesh.material = material
 }
@@ -187,6 +223,9 @@ function scenery(scene, bounds) {
   const reach = Math.max(right - left, bottom - top) * .5
   const terrain = CreateGround('terrain', { width: 160, height: 160 }, scene)
   terrain.material = surface(scene, 'earth', colors.earth)
+  const forestFloor=texture(scene,'trail')
+  forestFloor.uScale=forestFloor.vScale=72
+  terrain.material.diffuseTexture=forestFloor
   terrain.position.set(cx, -.045, cz)
 
   let randomSeed = 72
@@ -198,10 +237,10 @@ function scenery(scene, bounds) {
   for (let i = 0; i < 30; i++) {
     const angle = i / 30 * Math.PI * 2
     const radius = reach + 12 + random() * 12
-    const height = 3 + random() * 13
+    const height = 2 + random() * 5
     const span = 4 + random() * 8
     mountains.push({ at: [cx + Math.cos(angle) * radius, height / 2 - 1, cz + Math.sin(angle) * radius],
-      scale: [span, height, span], yaw: random() * 6, tint: i % 2 ? 0x608d75 : 0x456953 })
+      scale: [span, height*.7, span], yaw: random() * 6, tint: i % 2 ? 0x608d75 : 0x456953 })
   }
   for (let i = 0; i < 105; i++) {
     const x = left - 12 + random() * (right - left + 24)
@@ -220,9 +259,9 @@ function scenery(scene, bounds) {
         yaw: random() * 6, tint: tier ? 0x80b452 : 0x4f823f })
     }
   }
-  const cone = { diameterBottom: 2, diameterTop: 0, height: 1, tessellation: 5 }
-  addBatch(scene, 'mountains', CreateCylinder, cone, mountains)
-  addBatch(scene, 'foliage', CreateCylinder, cone, leaves)
+  addBatch(scene, 'distant ridges', CreateIcoSphere, { subdivisions: 1 }, mountains)
+  const crowns = addBatch(scene, 'cycad crowns', fern, {}, leaves.map(({at,scale,yaw}) => ({at,scale:scale.map(v=>v*2.7),yaw})))
+  if (crowns) crowns.material.backFaceCulling = false
   addBatch(scene, 'trunks', CreateCylinder, { diameter: 2, height: 1, tessellation: 8 }, trunks, 0x8e6a4a)
   addBatch(scene, 'boulders', CreateIcoSphere, { subdivisions: 1 }, boulders)
 }
@@ -357,6 +396,7 @@ export class World {
     this.overhead.minZ = .1
     this.overhead.maxZ = 170
 
+    skyDome(scene)
     scenery(scene, layout.data.bounds)
     floorMesh(scene, layout.data)
     wallMeshes(scene, layout)
