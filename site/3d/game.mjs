@@ -610,9 +610,8 @@ function tick(time) {
     const distance = speed * dt / Math.max(1, Math.hypot(forward, strafe))
     const sin = Math.sin(player.yaw)
     const cos = Math.cos(player.yaw)
-    // Motion mode uses map directions. Tilting or turning the phone only changes the camera.
-    const dx = (display === 'motion' ? strafe : sin * forward - cos * strafe) * distance
-    const dz = (display === 'motion' ? -forward : cos * forward + sin * strafe) * distance
+    const dx = (sin * forward - cos * strafe) * distance
+    const dz = (cos * forward + sin * strafe) * distance
     const phase = active('phase')
     slidePlayer(player,dx,dz,(x,z) => layout.wallContact(x,z,player.y,phase)
       ?? dinosaurContact(dinosaurs,player,x,z))
