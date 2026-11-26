@@ -1,3 +1,5 @@
+import { Hatchling } from './hatchling.mjs'
+import { voiceEnvelope } from './hatchling-play.mjs'
 import { Camera } from '@babylonjs/core/Cameras/camera.js'
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera.js'
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight.js'
@@ -461,6 +463,7 @@ export class World {
     this.cliffs()
     this.run=null
     this.crystalVisuals=[]
+    this.hatchlings=[]
     this.trackVisuals=new Map()
     this.particleVisuals=[]
     this.bombVisual=null
@@ -611,6 +614,8 @@ export class World {
     this.run=run
     if (this.switchingEngine || !this.scene) return
     for (const mesh of this.crystalVisuals) mesh.dispose(false,true)
+    for (const hatchling of this.hatchlings) hatchling.root.dispose(false,true)
+    this.hatchlings=[]
     for (const mesh of this.trackVisuals.values()) mesh.dispose()
     this.trackMaterial?.dispose()
     for (const mesh of this.particleVisuals) mesh.dispose(false,true)
@@ -622,6 +627,11 @@ export class World {
     this.particleVisuals=[]
     this.trackGround.update(run?.marks ?? [])
     if (!run) return
+    this.hatchlings=run.hatchlings.map((actor,index)=>{
+      const model=new Hatchling(this.scene,actor.kind,index+this.layout.data.centers.length)
+      model.root.scaling.setAll(.90)
+      return model
+    })
     for(const item of run.loot) {
       const type=crystals[item.kind]
       const hex=parseInt(type.color.slice(1),16)
@@ -694,6 +704,15 @@ export class World {
     const run=this.run
     if(!run) return
     const time=run.time
+    run.hatchlings.forEach((actor,index)=>{
+      const model=this.hatchlings[index]
+      model.root.position.set(actor.x,0,actor.z)
+      model.root.rotation.y=actor.yaw
+      model.pose(actor.clock,{
+        walk:actor.walk,action:actor.action,progress:(time-actor.actionAt)/actor.actionLength || 0,
+        voice:voiceEnvelope(actor.call,time),interest:actor.interest,
+      })
+    })
     for (const item of run.loot) {
       const mesh=this.crystalVisuals[item.id]
       mesh.setEnabled(!item.collected)

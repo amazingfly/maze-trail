@@ -1,3 +1,4 @@
+import { species, findHatchlings, walkHatchlings, targetHatchling, callHatchling } from './hatchling-play.mjs'
 import { Layout } from './layout.mjs'
 import { crystals, newExpedition } from './expedition.mjs'
 import { JungleAudio } from './sound.mjs'
@@ -193,6 +194,7 @@ function resetPlayer() {
     prepareMap()
   }
   run=newExpedition(layout)
+  run.hatchlings=findHatchlings(layout,selection,run.loot)
   world.setExpedition(run)
   updatePowers()
   footprints = false
@@ -374,9 +376,29 @@ function placeBomb() {
   updatePowers()
 }
 
+function greet(event) {
+  if(mode!=='play') return false
+  let {yaw,pitch}=player
+  if(event && document.pointerLockElement!==view) {
+    const bounds=view.getBoundingClientRect()
+    const fov=bounds.width<bounds.height?78:65
+    const scale=Math.tan(fov*Math.PI/360)*2/bounds.height
+    yaw-=Math.atan((event.clientX-bounds.left-bounds.width/2)*scale)
+    pitch-=Math.atan((event.clientY-bounds.top-bounds.height/2)*scale)
+  }
+  const actor=targetHatchling(run.hatchlings,player,layout,yaw,pitch)
+  if(!actor) return false
+  if(callHatchling(actor,player,run.time,audio,true)) {
+    run.message=species[actor.kind].name+' hatchling'
+    run.messageUntil=run.time+1.5
+  }
+  return true
+}
+
 function tickExpedition(dt) {
   run.time+=dt
   const time=run.time
+  walkHatchlings(run.hatchlings,player,time,dt,layout,audio)
   if (run.jumpUntil>=time && player.y===0) {
     player.vy=active('jump') ? 6.55 : 2.92
     run.jumpUntil=0
@@ -442,7 +464,8 @@ function tickExpedition(dt) {
   if(run.hudTick!==second) {
     run.hudTick=second
     updatePowers()
-    byId('pickup-message').textContent=time<run.messageUntil ? run.message : ''
+    const hatchling=targetHatchling(run.hatchlings,player,layout,player.yaw,player.pitch)
+    byId('pickup-message').textContent=time<run.messageUntil ? run.message : hatchling ? (touch.matches ? 'Tap to greet' : 'Click or press C to greet') : ''
   }
 }
 
@@ -541,7 +564,7 @@ byId('jump-player').addEventListener('pointerdown', event => { event.preventDefa
 byId('drop-bomb').addEventListener('click', placeBomb)
 byId('equip-bomb').addEventListener('click', toggleBomb)
 window.addEventListener('click', event => {
-  if (mode==='play' && event.button===0 && document.pointerLockElement===view) placeBomb()
+  if (mode==='play' && event.button===0 && document.pointerLockElement===view && !greet(event)) placeBomb()
 })
 choice.addEventListener('change', () => choose(Number(choice.value)))
 for (const select of [launchDisplay, pauseDisplay]) {
@@ -611,6 +634,7 @@ window.addEventListener('keydown', event => {
   if (event.code === 'Space') { event.preventDefault(); jump() }
   if (event.code === 'KeyB') toggleBomb()
   if (event.code === 'KeyF') placeBomb()
+  if (event.code === 'KeyC') greet()
   if (event.code === 'KeyH') byId('hint').click()
   if (event.code === 'KeyM') byId('map-toggle').click()
 })
@@ -650,7 +674,8 @@ view.addEventListener('pointerdown', event => {
   view.setPointerCapture(event.pointerId)
 })
 view.addEventListener('click', event => {
-  if (!touch.matches && !document.pointerLockElement && event.detail && !dragMoved) placeBomb()
+  if (document.pointerLockElement || !event.detail || dragMoved) return
+  if (!greet(event) && !touch.matches) placeBomb()
 })
 let dragMoved=false
 view.addEventListener('pointermove', event => {
@@ -684,7 +709,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=7'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=8'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()

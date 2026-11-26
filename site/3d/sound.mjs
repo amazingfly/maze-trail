@@ -73,6 +73,24 @@ export class JungleAudio {
     voice.stop(t+time)
   }
 
+  hatchlingSneeze(pitch,pan,volume) {
+    this.voice({start:pitch*1.12,end:pitch*.62,time:.23,gain:.16*volume,type:'triangle',pan})
+    this.voice({start:3200,end:540,time:.33,gain:.35*volume,noise:true,pan,attack:.015})
+    this.voice({start:pitch*.8,end:pitch*.60,time:.16,gain:.08*volume,type:'sine',pan,delay:.22})
+  }
+
+  hatchlingCall(notes,pan,volume,kind) {
+    for (const {at,duration,pitch} of notes) {
+      const attack=kind==='longneck'?.042:.026
+      this.voice({start:pitch*.76,end:pitch*1.25,time:duration,gain:volume*.23,
+        delay:at,pan,type:'triangle',attack})
+      this.voice({start:pitch*2.2,end:pitch*1.56,time:duration*.91,gain:volume*.083,
+        delay:at+.008,pan,type:'sine',attack:.022})
+      this.voice({start:pitch*7,end:pitch*2.7,time:duration*.77,gain:volume*.064,
+        delay:at+.014,pan,noise:true,attack:.018})
+    }
+  }
+
   play(kind,{pan=0,volume=1,distance=0,variant=0}={}) {
     const pitch=.88+Math.random()*.24
     const tone=(start,end,time,gain,more={})=>this.voice({
