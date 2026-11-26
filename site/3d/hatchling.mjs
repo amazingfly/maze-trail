@@ -12,6 +12,14 @@ import { species } from './hatchling-play.mjs'
 const rgb = color => Color3.FromInts(color >> 16, (color >> 8) & 255, color & 255)
 const TAU = 2*Math.PI
 const clamp = value => Math.min(1,Math.max(0,value))
+const smooth = value => { const t=clamp(value); return t*t*(3-2*t) }
+
+const adultCoats = {
+  trike:    { skin:0x9b5840, shadow:0x553d38, cream:0xc69768, accent:0xbb7450 },
+  stego:    { skin:0x507466, shadow:0x354742, cream:0xaaa371, accent:0xca8248 },
+  rex:      { skin:0x7c8045, shadow:0x363b29, cream:0xb6a268, accent:0x967341 },
+  longneck: { skin:0x577d8c, shadow:0x374e61, cream:0xa6c7bc, accent:0x798dab },
+}
 const mix = (a,b,t) => a+(b-a)*t
 
 function shade(position, id, palette, underside) {
@@ -150,12 +158,14 @@ function node(name,scene,parent,at=[0,0,0]) {
 }
 
 export class Hatchling {
-  constructor(scene, kind, seed=1) {
+  constructor(scene, kind, seed=1, { adult=false }={}) {
     this.kind=kind
     this.type=species[kind]
-    const {skin,shadow,cream,accent,iris}=this.type
+    this.adult=adult
+    const {skin,shadow,cream,accent,iris}={...this.type,...(adult ? adultCoats[kind] : {})}
     const palette={kind,skin:rgb(skin),shadow:rgb(shadow),cream:rgb(cream),accent:rgb(accent)}
-    this.root=node(this.type.name+' hatchling',scene,null)
+    this.root=node(this.type.name+(adult?' adult':' hatchling'),scene,null)
+    this.root.scaling.setAll(adult?5:1)
     this.body=node('body and hips',scene,this.root)
     const material=(name,color,gloss=0)=>{
       const mat=new StandardMaterial(name,scene)
@@ -169,13 +179,13 @@ export class Hatchling {
     skinMat.diffuseTexture=scaleTexture(scene,seed)
     skinMat.diffuseTexture.uScale=1.44
     skinMat.diffuseTexture.vScale=1.19
-    const lip=material('lip and nostrils',0x513333)
-    const mouth=material('mouth lining',0x421c36)
-    const tongue=material('tongue',0xe48491,1)
+    const lip=material('lip and nostrils',adult?0x422e29:0x513333)
+    const mouth=material('mouth lining',adult?0x301722:0x421c36)
+    const tongue=material('tongue',adult?0xa85a63:0xe48491,1)
     const bone=material('horn, beak and claws',0xf9dbab)
     const almond=material('warm sclera',0xfff2d6,1)
-    const eyeTint=material('iris',iris,1)
-    const eyeRidge=kind==='rex' ? material('orbital rim',skin) : null
+    const eyeTint=material('iris',adult?0xc39956:iris,1)
+    const eyeRidge=kind==='rex' || adult ? material('orbital rim',skin) : null
     const pupil=material('pupil',0x171825,1)
     const shine=material('catchlight',0xfffcf1)
     shine.emissiveColor=rgb(0xfffcf1)
@@ -194,13 +204,15 @@ export class Hatchling {
     }
     const rex=kind==='rex', long=kind==='longneck', trike=kind==='trike', stego=kind==='stego'
     const torsoY=rex?.355:long?.355:.288
-    hide('rounded ribcage',this.body,[0,torsoY,.002],[rex?.123:.138,.125,rex?.205:.216],1.06)
-    hide('shoulder and breast',this.body,[0,torsoY-.004,.121],[.112,.111,.123])
-    hide('haunches',this.body,[0,torsoY-.014,-.13],[.126,.119,.103])
+    const mass=adult?1.17:1
+    hide('rounded ribcage',this.body,[0,torsoY,.002],[(rex?.123:.138)*mass,.125*mass,(rex?.205:.216)*mass],1.06)
+    hide('shoulder and breast',this.body,[0,torsoY+(adult&&long?.032:-.004),adult&&rex?.140:.121],
+      [.112*mass,(adult&&long?.136:.111)*mass,.123*mass])
+    hide('haunches',this.body,[0,torsoY-.014,-.13],[.126*mass,.119*mass,.103*mass])
 
     const neckBase=[0,torsoY+.045,.136]
     this.neck=node('neck joint',scene,this.body,neckBase)
-    const neckTop=long?[0,.344,.124]:rex?[0,.091,.057]:[0,.032,.069]
+    const neckTop=long?[0,adult?.454:.344,adult?.152:.124]:rex?[0,.091,.057]:[0,.032,.069]
     sweep('tapered neck',scene,this.neck,[
       [0,-.065,-.037,.104,.092],
       [0,neckTop[1]*.16,long?.008:.034,long?.084:.094,long?.084:.085],
@@ -211,6 +223,9 @@ export class Hatchling {
     ],palette,seed,skinMat)
     this.head=node('skull pivot',scene,this.neck,neckTop)
     this.headRest=neckTop
+    if (adult) {
+      this.head.scaling.set(rex?1.09:.93,rex?.96:.84,rex?1.24:trike?1.09:.98)
+    }
     const headWidth=rex?.121:trike?.113:stego?.092:.087
     const snout=rex?.150:trike?.128:stego?.110:.119
     sweep('continuous skull and upper snout',scene,this.head,[
@@ -229,28 +244,29 @@ export class Hatchling {
     this.jaw=node('hinged lower jaw',scene,this.head,[0,-.049,-.028])
     hide('lower jaw',this.jaw,[0,-.026,snout*.84],[headWidth*.80,.034,snout*.82],.90)
     solid('inner mouth',this.jaw,[0,-.008,snout*.88],[headWidth*.72,.014,snout*.74],mouth)
-    solid('soft tongue',this.jaw,[0,.000,snout*1.04],[headWidth*.49,.008,snout*.46],tongue)
+    solid('soft tongue',this.jaw,[0,.000,snout*1.04],[headWidth*(adult?.42:.49),.008,snout*(adult?.36:.46)],tongue)
     if (!rex) solid('curved upper beak',this.head,[0,-.033,snout*1.28],[headWidth*.54,.028,.035],bone)
 
     this.eyes=[]
     for (const side of [-1,1]) {
       const eye=node('eye socket',scene,this.head,[side*headWidth*.74,.051,.067])
       eye.rotation.y=side*.77
-      solid('soft orbital ridge',eye,[0,.004,.012],[.047,.051,.027],rex?eyeRidge:crest)
-      const globe=node('blink pivot',scene,eye,[0,.001,.026])
+      solid('soft orbital ridge',eye,[0,.004,.012],[.047,.051,.027],eyeRidge??crest)
+      const globe=node('blink pivot',scene,eye,[0,.001,adult?.020:.026])
       solid('eye white',globe,[0,0,0],[.034,.040,.019],almond)
       solid('iris',globe,[-side*.005,-.001,.014],[.026,.031,.011],eyeTint)
       solid('pupil',globe,[-side*.007,.001,.021],[.014,.022,.005],pupil)
       solid('large eye glint',globe,[-.010,.013,.025],[.008,.008,.003],shine)
       solid('small eye glint',globe,[.010,-.009,.024],[.0034,.0034,.002],shine)
+      if (adult) globe.scaling.set(.70,.74,.84)
       this.eyes.push(globe)
-      const brow=hide('expressive brow',eye,[0,.034,.011],[.049,.016,.027])
-      brow.rotation.z=side*.18
+      const brow=hide('expressive brow',eye,[0,.034,.011],[.049,adult?.024:.016,.027])
+      brow.rotation.z=side*(adult?.34:.18)
       solid('nostril',this.head,[side*headWidth*.53,.014,snout*1.29],[.012,.007,.006],lip)
-      if(rex)for(let i=0;i<4;i++){
-        const z=.071+i*.030
+      if(rex)for(let i=0;i<(adult?6:4);i++){
+        const z=.071+i*(adult?.019:.030)
         const x=side*headWidth*(.74-.062*i)
-        sweep('little tooth',scene,this.head,[[x,-.046,z,.008,.007],[x,-.063-(i%2)*.004,z+.003,.001,.001]],null,seed,bone)
+        sweep('little tooth',scene,this.head,[[x,-.046,z,.008,.007],[x,-.061-(adult?.013:.002)-(i%2)*.004,z+.003,.001,.001]],null,seed,bone)
       }
       if(kind!=='trike') {
         for(let i=0;i<5;i++) {
@@ -288,7 +304,7 @@ export class Hatchling {
       }
       for (const side of [-1,1]) sweep('brow horn',scene,this.head,[
         [side*.075,.087,.061,.028,.026],[side*.083,.130,.100,.020,.018],
-        [side*.088,.158,.129,.012,.010],[side*.089,.188,.147,.002,.002],
+        [side*.088,adult?.181:.158,adult?.152:.129,.012,.010],[side*.089,adult?.242:.188,adult?.205:.147,.002,.002],
       ],null,seed,bone)
       sweep('nose horn',scene,this.head,[[0,.025,.153,.022,.020],[0,.072,.161,.012,.011],[0,.098,.166,.002,.002]],null,seed,bone)
     }
@@ -296,7 +312,7 @@ export class Hatchling {
       for(let i=0;i<7;i++){
         const z=.151-i*.049
         const y=torsoY+.099+.017*Math.sin(i*.6)
-        const h=.050+.087*Math.sin((i+1)*Math.PI/8)
+        const h=(.050+.087*Math.sin((i+1)*Math.PI/8))*(adult?1.25:1)
         const side=i%2?1:-1
         const sail=plate('alternating sail plate',scene,this.body,[side*.039,y,z],.035,h,.022,i%2?crest:deepCrest)
         sail.rotation.y=side*.15+.08*Math.sin(i*1.7)
@@ -304,16 +320,22 @@ export class Hatchling {
         ridge.rotation.x=.29
       }
     }
+    if(adult) for(const sign of [-1,1]) for(let i=0;i<6;i++){
+      const z=.131-i*.046, y=torsoY+.071+.017*Math.sin(i*.9)
+      const width=(rex?.104:.118)*mass
+      const scute=hide('raised flank scales',this.body,[sign*width,y,z],[.020,.012,.018])
+      scute.rotation.z=sign*.56
+    }
     if(rex || long) for(let i=0;i<(rex?5:7);i++){
       const plateRoot=long?this.neck:this.body
       const at=long?[0,i*.044,.012+i*.009]:[0,torsoY+.119,-.014-i*.039]
       solid('dorsal scales',plateRoot,at,[.018,.015,.021],crest)
     }
 
-    const tailLength=rex?.535:stego?.473:long?.401:.335
+    const tailLength=(rex?.535:stego?.473:long?.401:.335)*(adult?1.23:1)
     this.tail=node('tail base',scene,this.body,[0,torsoY+.003,-.158])
     const sections=Array.from({length:14},(_,i)=>{
-      const t=i/13, r=.084*(1-t)**.93+.001
+      const t=i/13, r=.084*mass*(1-t)**.93+.001
       return [0,.045*Math.sin(t*Math.PI*.7),.018-tailLength*t,r,r*.87]
     })
     this.tailMesh=sweep('continuous tail',scene,this.tail,sections,palette,seed,skinMat)
@@ -345,7 +367,7 @@ export class Hatchling {
       const shoulder=node(arm?'shoulder':'upper leg',scene,this.body,[side*(arm?.094:.097),jointHeight,front?.121:-.103])
       const knee=node(arm?'wrist':'knee',scene,shoulder,[side*(arm?.011:0),-femur,arm?.020:.007])
       const ankle=node(arm?'hand':'ankle',scene,knee,[0,-shin,arm?.021:.010])
-      const width=arm?.027:front?.042:.057
+      const width=(arm?.027:front?.042:.057)*(adult?1.15:1)
       hide('upper limb',shoulder,[0,-femur*.40,0],[width,femur*.76,width*1.05])
       hide('lower limb',knee,[0,-shin*.45,.004],[width*.66,shin*.69,width*.72])
       hide(arm?'hand':'padded foot',ankle,[0,-.003,.022],[width*.93,arm?.020:.030,arm?.037:.055])
@@ -359,33 +381,37 @@ export class Hatchling {
 
   pose(time,{walk=0,gaitTime=time,action='',progress=0,voice=0,interest=0,bank=0}={}) {
     const t=time
-    const gait=gaitTime*TAU*this.type.gait+.19*Math.sin(gaitTime*2.1)
-    const act=Math.sin(Math.PI*clamp(progress))
-    const sit=action==='sit'?Math.min(1,act*1.95):0
+    const adult=this.adult
+    const gait=gaitTime*TAU*this.type.gait*(adult?.58:1)+.19*Math.sin(gaitTime*2.1)
+    const roar=action==='roar' ? smooth(progress/.22)*smooth((1-progress)/.28) : 0
+    const breath=Math.sin(t*(adult?1.65:2.7))
+    const act=smooth(progress/.27)*smooth((1-progress)/.27)
+    const sit=action==='sit'?act:0
     const shake=action==='sneeze'?Math.sin(Math.PI*clamp((progress-.08)/.84)):0
     const scratch=action==='scratch'?act:0
     const wag=action==='wag'?act:0
     const rex=this.kind==='rex'
-    this.body.position.y=.005*Math.sin(t*3.1)+walk*(.013+.018*Math.sin(gait*2+.5))-.072*sit+.027*shake
-    this.body.rotation.z=-bank*.075*walk+walk*.047*Math.sin(gait)+.018*shake*Math.sin(progress*36)
+    this.body.position.y=.005*breath+walk*(adult?.61:1)*(.013+.018*Math.sin(gait*2+.5))-.072*sit+.027*shake+.018*roar
+    this.body.scaling.set(1+.010*breath,1+.011*breath+.018*roar,1)
+    this.body.rotation.z=-bank*.075*walk+walk*(adult?.031:.047)*Math.sin(gait)+.018*shake*Math.sin(progress*36)
       +wag*.043*Math.sin(progress*TAU*2.45+.5)
     this.body.rotation.x=sit*-.14+walk*.038*Math.sin(gait*2)-.07*shake
     this.body.rotation.y=wag*.065*Math.sin(progress*TAU*2.45+.8)
-    this.neck.rotation.x=.035*Math.sin(t*2.3)+walk*.071*Math.sin(gait+.7)-.20*sit+.31*scratch
+    this.neck.rotation.x=.026*breath+walk*.071*Math.sin(gait+.7)-.20*sit+.31*scratch-.17*roar
     this.head.position.set(0,this.headRest[1]-.028*scratch,this.headRest[2]-.035*scratch)
     const sneezeSnap=Math.exp(-((progress-.47)**2)/.003)
     const sneezeRecoil=Math.exp(-((progress-.58)**2)/.008)
     this.head.rotation.x=.030*Math.sin(t*2.2+.5)+walk*.105*Math.sin(gait+.33)
-      +shake*(.47*sneezeSnap-.28*sneezeRecoil)+.23*scratch
+      +shake*(.47*sneezeSnap-.28*sneezeRecoil)+.23*scratch-.19*roar-this.body.rotation.x*.32
     this.head.rotation.y=interest*.43+bank*.23*walk+.077*Math.sin(t*1.9)+walk*.041*Math.sin(gait)+shake*.26*Math.sin(progress*32)
-    this.head.rotation.z=.060*Math.sin(t*1.1)+shake*.15*Math.sin(progress*32)
-    this.jaw.rotation.x=.012+voice*.67+shake*.34*Math.exp(-((progress-.49)**2)/.013)
+    this.head.rotation.z=(adult?.027:.060)*Math.sin(t*1.1)+shake*.15*Math.sin(progress*32)
+    this.jaw.rotation.x=.012+voice*(adult?.86:.67)+roar*.22+shake*.34*Math.exp(-((progress-.49)**2)/.013)
     const blinkTick=(t+.27)%(3.37+this.type.gait*.7)
     const blink=1-.91*Math.sin(Math.PI*clamp(blinkTick/.17))
-    for(const eye of this.eyes) eye.scaling.y=blink*(1-.35*shake)
+    for(const eye of this.eyes) eye.scaling.y=blink*(adult?.74:1)*(1-.35*shake-.17*roar)
     const tailWave=(.054+.07*walk)*Math.sin(t*3.9)+wag*.13*Math.sin(progress*TAU*2.45)
       -bank*.11*walk
-    const rearLift=.013*Math.sin(t*2.7)+.036*walk*Math.sin(gait+.4)-.046*sit
+    const rearLift=.013*breath+.036*walk*Math.sin(gait+.4)-.046*sit+.046*roar
     for(let i=0;i<this.tailRest.length;i+=3) {
       const back=clamp(-this.tailRest[i+2]/this.tailLength)
       this.tailStream[i]=this.tailRest[i]+tailWave*back**1.5
@@ -402,14 +428,15 @@ export class Hatchling {
       spike.rotation.y=-tailWave*back*2.7
     }
 
+    const stance=adult?.71:.62
     for(const {shoulder,knee,ankle,side,front,arm,femur,shin} of this.legs){
       const cycle=gait/TAU+(side===1?.5:0)+(front&&!rex?.42:0)
       const phase=cycle-Math.floor(cycle)
       const stride=this.kind==='longneck'?.153:rex?.204:.145
-      const swing=phase>.61
-      const swingProgress=(phase-.61)/.39
-      const forward=walk*stride*(swing ? -.5+.5*(1-Math.cos(Math.PI*swingProgress)) : .5-phase/.61)
-      const lift=swing ? walk*(rex?.066:.055)*Math.sin(Math.PI*swingProgress) : 0
+      const swing=phase>stance
+      const swingProgress=(phase-stance)/(1-stance)
+      const forward=walk*stride*(swing ? -.5+smooth(swingProgress) : .5-phase/stance)
+      const lift=swing ? walk*(adult?.034:rex?.066:.055)*Math.sin(Math.PI*swingProgress)**1.35 : 0
       const reach=arm && side===1 ? scratch : 0
       if(arm) {
         shoulder.position.z=.121+.042*reach
@@ -419,7 +446,7 @@ export class Hatchling {
         ankle.rotation.x=.12*Math.sin(t*4.2+side)+reach*.71
         continue
       }
-      const targetZ=forward+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
+      const targetZ=forward+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
       const hip=shoulder.position
       const drop=hip.y+this.body.position.y-Math.sin(this.body.rotation.x)*hip.z
         +Math.sin(this.body.rotation.z)*hip.x-.029-lift
@@ -430,7 +457,9 @@ export class Hatchling {
       shoulder.rotation.x=Math.atan2(-targetZ,drop)-bend*Math.acos(Math.max(-1,Math.min(1,cosA)))
       shoulder.rotation.z=side*.025
       knee.rotation.x=bend*Math.acos(Math.max(-1,Math.min(1,cosB)))
-      ankle.rotation.x=-shoulder.rotation.x-knee.rotation.x+walk*lift*3.2
+      // Cancel torso pitch and bank at the ankle to keep planted feet flat.
+      ankle.rotation.x=-this.body.rotation.x-shoulder.rotation.x-knee.rotation.x+walk*lift*3.2
+      ankle.rotation.z=-this.body.rotation.z-shoulder.rotation.z
     }
   }
 }

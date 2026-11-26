@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:3d": "esbuild site/3d/world.mjs --bundle --splitting --format=esm --minify --target=es2022 --out-extension:.js=.mjs --chunk-names=chunks/[name]-[hash] --log-level=warning"
+    "build:3d": "esbuild site/3d/world.mjs site/3d/dinosaur-lineup.mjs --bundle --splitting --format=esm --minify --target=es2022 --out-extension:.js=.mjs --chunk-names=chunks/[name]-[hash] --log-level=warning"
   },
   "dependencies": {
     "@babylonjs/core": "9.37.2",

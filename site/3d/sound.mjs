@@ -1,5 +1,5 @@
 export class JungleAudio {
-  start() {
+  start({ambience=true}={}) {
     const AudioContext = window.AudioContext ?? window.webkitAudioContext
     if (!AudioContext) return
     if (!this.context) {
@@ -11,8 +11,10 @@ export class JungleAudio {
       this.noise = ctx.createBuffer(1,ctx.sampleRate*3,ctx.sampleRate)
       const data=this.noise.getChannelData(0)
       for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1
-      this.loop('drums',this.music,.28,.91)
-      this.loop('jungle',this.effects,.23,1)
+      if (ambience) {
+        this.loop('drums',this.music,.28,.91)
+        this.loop('jungle',this.effects,.23,1)
+      }
     }
     this.context.resume().catch(() => {})
   }
@@ -89,6 +91,24 @@ export class JungleAudio {
       this.voice({start:pitch*7,end:pitch*2.7,time:duration*.77,gain:volume*.064,
         delay:at+.014,pan,noise:true,attack:.018})
     }
+  }
+
+  adultRoar(kind) {
+    const voices = {
+      rex: [[.02,1.82,66,43],[1.08,.66,44,30]],
+      trike: [[.01,.81,119,73],[.79,.90,102,64]],
+      stego: [[.02,.63,88,51],[.72,1.02,78,46]],
+      longneck: [[.02,1.53,126,92],[1.14,.64,98,71]],
+    }
+    const notes=voices[kind]
+    for (const [at,duration,from,to] of notes) {
+      const attack=kind==='rex'?.18:.095
+      this.voice({start:from,end:to,time:duration,gain:.23,type:'triangle',delay:at,attack})
+      this.voice({start:from*.55,end:to*.6,time:duration,gain:.19,delay:at,attack})
+      this.voice({start:from*2.12,end:to*1.82,time:duration*.90,gain:.071,type:'sawtooth',delay:at+.035,attack})
+      this.voice({start:kind==='rex'?895:1240,end:155,time:duration*.94,gain:.38,noise:true,delay:at+.04,attack})
+    }
+    return notes.map(([at,duration])=>({at,duration}))
   }
 
   play(kind,{pan=0,volume=1,distance=0,variant=0}={}) {
