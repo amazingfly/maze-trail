@@ -97,3 +97,17 @@ export function broadleaf(name, options, scene) {
   }
   return finish()
 }
+
+export function hedgeShoot(name, options, scene) {
+  const {leaf,finish}=plant(name,scene)
+  for(let i=0;i<8;i++) {
+    const a=i*2.4
+    const x=Math.sin(a), z=Math.cos(a)
+    const h=.19+.18*(i%3)
+    const base=[x*.05,0,z*.05]
+    const tip=[x*.52,h,z*.46+.12]
+    leaf(base,tip,[z*.13,.025,-x*.13],[0,.06,0],
+      [.21+.045*(i%4),.43+.059*(i%4),.19])
+  }
+  return finish()
+}

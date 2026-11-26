@@ -4,7 +4,7 @@ import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight.js'
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight.js'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js'
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder.js'
-import { fern, creeper, broadleaf } from './flora.mjs'
+import { fern, creeper, broadleaf, hedgeShoot } from './flora.mjs'
 import { Texture } from '@babylonjs/core/Materials/Textures/texture.js'
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color.js'
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector.js'
@@ -60,10 +60,10 @@ function writeTransforms(items, buffer, pitch = 0) {
   }
 }
 
-function addBatch(scene, name, build, options, items, color = 0xffffff) {
+function addBatch(scene, name, build, options, items, color = 0xffffff, material = null) {
   if (!items.length) return
   const mesh = build(name, options, scene)
-  mesh.material = surface(scene, name, color)
+  mesh.material = material ?? surface(scene, name, color)
   mesh.isPickable = false
   const transforms = new Float32Array(items.length * 16)
   writeTransforms(items, transforms)
@@ -86,7 +86,9 @@ function texture(scene, name) {
 }
 
 function wallMeshes(scene, layout) {
-  const positions = [], indices = [], uvs = [], normals = [], colors = []
+  const geometry = () => ({positions:[], indices:[], uvs:[], normals:[], colors:[]})
+  const stoneFace = geometry(), hedgeFace = geometry()
+  const outcrops = [], sprays = []
   const vines = [], ferns = [], bushes = [], stones = [], pillars = []
   const ends = new Map()
   let seed = layout.data.centers.length
@@ -96,7 +98,12 @@ function wallMeshes(scene, layout) {
   for (const [[ax,az],[bx,bz]] of layout.segments) {
     const length = Math.hypot(bx-ax,bz-az)
     const nx = (az-bz)/length, nz = (bx-ax)/length
-    const top = (x,z) => wallHeight + .021*Math.sin(4*x+2*z) + .012*Math.sin(9*z-3*x)
+    // A continuous field gives neighbouring wall segments the same habitat.
+    const growth = (x,z) => Math.sin(1.27*x+.72*z)+.77*Math.cos(1.63*z-.48*x)
+    const hedge = growth((ax+bx)/2,(az+bz)/2) > -.12
+    const {positions, indices, uvs, normals, colors} = hedge ? hedgeFace : stoneFace
+    const top = (x,z) => wallHeight + .09*Math.sin(3*x+2*z) + .044*Math.sin(9*z-3*x)
+      + .10*Math.max(0,growth(x,z))
     function quad(points, normal, light, uv) {
       const start = positions.length/3
       points.forEach((point,i) => {
@@ -118,7 +125,28 @@ function wallMeshes(scene, layout) {
       const x=ax+sign*nx*half,z=az+sign*nz*half,xx=bx+sign*nx*half,zz=bz+sign*nz*half
       quad([[x,0,z],[xx,0,zz],[xx,top(bx,bz),zz],[x,top(ax,az),z]],
         [sign*nx,0,sign*nz],[.60,.60,1,1],[[u,0],[v,0],[v,.88],[u,.88]])
-      if (random()<length*2.45) {
+      const yaw = Math.atan2(sign*nx,sign*nz)
+      const steps = Math.max(1,Math.ceil(length/.19))
+      for (let k=0; k<steps; k++) {
+        const t=(k+.5)/steps, px=x+(xx-x)*t, pz=z+(zz-z)*t
+        const h=top(px,pz)
+        if (hedge) {
+          for (const layer of [.17,.49,.79,1]) {
+            const width=.25+random()*.24
+            sprays.push({at:[px,h*layer-random()*.10,pz],
+              scale:[width,.21+random()*.25,.16+random()*.08],yaw:yaw+(random()-.5)*.95,
+              tint:random()<.27?0xd8cc99:0xe4efd1})
+          }
+        } else {
+          for (const layer of [.14,.45,.76,.96]) {
+            if (random()<.32) continue
+            outcrops.push({at:[px,h*(layer+(random()-.5)*.17),pz],
+              scale:[.13+random()*.22,.08+random()*.14,.045+random()*.07],
+              yaw:yaw+(random()-.5)*.28,tint:random()<.26?0x9aa276:0xd2c7ab})
+          }
+        }
+      }
+      if (random()<length*(hedge?1.25:2.1)) {
         const t=random(), size=.63+.55*random()
         vines.push({at:[x+(xx-x)*t+.004*sign*nx,top(ax,az),z+(zz-z)*t+.004*sign*nz],
           scale:[size,size,size],yaw:Math.atan2(sign*nx,sign*nz)})
@@ -141,14 +169,33 @@ function wallMeshes(scene, layout) {
     pillars.push({at:[x,.49,z],scale:[half*1.06,.98,half*1.06],yaw:0})
   }
   addBatch(scene,'exposed rock ends',CreateCylinder,{diameter:2,height:1,tessellation:7},pillars,0x94775a)
-  const walls=new Mesh('weathered sandstone',scene)
-  const data=new VertexData()
-  Object.assign(data,{positions,indices,uvs,normals,colors})
-  data.applyToMesh(walls)
-  walls.material=surface(scene,'sedimentary rock',0xfff6e5)
-  walls.material.diffuseTexture=texture(scene,'strata')
-  walls.material.backFaceCulling=false
-  walls.material.emissiveColor=color3(0x241d12)
+  for (const [name,geometry,map] of [['fractured bluff',stoneFace,'fracture'],['living hedge',hedgeFace,'hedge']]) {
+    if (!geometry.indices.length) continue
+    const mesh=new Mesh(name,scene)
+    const data=new VertexData()
+    Object.assign(data,geometry)
+    data.applyToMesh(mesh)
+    mesh.material=surface(scene,name,0xfff6e5)
+    mesh.material.diffuseTexture=texture(scene,map)
+    mesh.material.backFaceCulling=false
+    mesh.material.emissiveColor=color3(0x201c13)
+  }
+  // Cull the dense relief in patches so a distant wall can leave the draw list.
+  for (const [name,build,options,items] of [
+    ['weathered outcrops',CreateIcoSphere,{subdivisions:1},outcrops],
+    ['hedge shoots',hedgeShoot,{},sprays],
+  ]) {
+    const patches=new Map()
+    for (const item of items) {
+      const key=Math.floor(item.at[0]/5)+','+Math.floor(item.at[2]/5)
+      if (!patches.has(key)) patches.set(key,[])
+      patches.get(key).push(item)
+    }
+    const material=surface(scene,name,0xffffff)
+    if (items===outcrops) material.diffuseTexture=texture(scene,'fracture')
+    else material.backFaceCulling=false
+    for (const patch of patches.values()) addBatch(scene,name,build,options,patch,0xffffff,material)
+  }
   for (const [name,build,items] of [['hanging vines',creeper,vines],['trail ferns',fern,ferns],['understory shrubs',broadleaf,bushes]]) {
     const mesh=addBatch(scene,name,build,{},items)
     if(mesh) mesh.material.backFaceCulling=false
