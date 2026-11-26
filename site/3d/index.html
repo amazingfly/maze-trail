@@ -8,7 +8,7 @@
   <title>Dinosaur Adventures 3D · Maze Trail</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./game.css?v=14">
+  <link rel="stylesheet" href="./game.css?v=15">
 </head>
 <body>
   <main id="game" data-mode="menu">
@@ -19,6 +19,7 @@
       <a class="button subtle" id="book-link" href="../books/dinosaur-adventures/">Book mazes</a>
       <div class="game-actions" hidden>
         <button id="mouse-look" type="button" title="Capture your mouse. Press Esc to release it.">Mouse look</button>
+        <button id="motion-center" type="button" title="Center the motion view" hidden>Center</button>
         <button id="hint" type="button" aria-pressed="false" title="Toggle guide footprints (H)">Guide</button>
         <button id="map-toggle" type="button" aria-pressed="false" title="Toggle map (M)">Map</button>
         <button id="pause" type="button" title="Pause (Esc)">Pause</button>
@@ -34,7 +35,7 @@
         <select id="maze-choice" disabled><option>Loading mazes…</option></select>
         <label for="launch-display">Display mode</label>
         <select id="launch-display">
-          <option value="vr">VR style (split screen)</option>
+          <option value="motion">Motion view (phone tilt)</option>
           <option value="fullscreen">Fullscreen</option>
           <option value="browser">In browser</option>
         </select>
@@ -88,7 +89,7 @@
         <input id="effects-volume" type="range" min="0" max="100">
         <label for="pause-display">Display mode</label>
         <select id="pause-display">
-          <option value="vr">VR style (split screen)</option>
+          <option value="motion">Motion view (phone tilt)</option>
           <option value="fullscreen">Fullscreen</option>
           <option value="browser">In browser</option>
         </select>
@@ -103,6 +104,6 @@
       </div>
     </dialog>
   </main>
-  <script type="module" src="./game.mjs?v=14"></script>
+  <script type="module" src="./game.mjs?v=15"></script>
 </body>
 </html>

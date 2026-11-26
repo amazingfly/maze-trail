@@ -1,6 +1,7 @@
+import { dinosaurContact, dinosaurJumpLimit, slidePlayer } from './movement.mjs'
 import { species, findHatchlings, walkHatchlings, targetHatchling, callHatchling, recruitHatchling } from './hatchling-play.mjs'
 import { Layout } from './layout.mjs'
-import { crystals, newExpedition } from './expedition.mjs'
+import { bombBurst, crystals, effectLimit, newExpedition } from './expedition.mjs'
 import { JungleAudio } from './sound.mjs'
 
 const byId = id => document.getElementById(id)
@@ -55,14 +56,17 @@ let mode = 'menu'
 let footprints = false, showMap = true, hintCell
 let drag, hadLock = false, lastFrame = 0, frame
 let completed = new Set()
-let display = phone ? 'vr' : 'fullscreen', autoCapture = true
+let display = phone ? 'motion' : 'fullscreen', autoCapture = true
+let motionHeading, headingOffset, motionPermission
+const motionCenter = byId('motion-center')
 let musicVolume=.28, effectsVolume=.65
 let wasFullscreen = false
 try {
   const saved = JSON.parse(localStorage.getItem(storageKey))
   if (Array.isArray(saved)) completed = new Set(saved)
   const settings = JSON.parse(localStorage.getItem(settingsKey))
-  if (['vr', 'fullscreen', 'browser'].includes(settings?.display)) display = settings.display
+  const preference = settings?.display === 'vr' ? 'motion' : settings?.display
+  if (['motion', 'fullscreen', 'browser'].includes(preference)) display = preference
   if (settings?.autoCapture === false) autoCapture = false
   if (typeof settings?.musicVolume === 'number') musicVolume=Math.min(1,Math.max(0,settings.musicVolume))
   if (typeof settings?.effectsVolume === 'number') effectsVolume=Math.min(1,Math.max(0,settings.effectsVolume))
@@ -166,7 +170,7 @@ function clearInput() {
 }
 
 function lockPointer() {
-  if (touchControls() || !view.requestPointerLock || document.pointerLockElement === view) return
+  if (display === 'motion' || touchControls() || !view.requestPointerLock || document.pointerLockElement === view) return
   try {
     view.requestPointerLock()?.catch(() => {})
   } catch {
@@ -211,7 +215,12 @@ function enter(reset) {
   if (start.disabled) return
   if (panel.open) panel.close()
   clearInput()
-  if (reset) resetPlayer()
+  if (reset) {
+    headingOffset = motionHeading = undefined
+    resetPlayer()
+  }
+  if (display === 'motion') requestMotion()
+  updateMotionButton()
   audio.start()
   setMode('play')
   syncAssists()
@@ -327,7 +336,54 @@ function drawMap() {
   mapContext.restore()
 }
 
+function updateMotionButton() {
+  const tracking = motionHeading !== undefined
+  motionCenter.hidden = display !== 'motion' || (!tracking && !window.DeviceOrientationEvent?.requestPermission)
+  motionCenter.textContent = tracking ? 'Center' : 'Enable tilt'
+}
+
+async function requestMotion(retry = false) {
+  const orientation = window.DeviceOrientationEvent
+  if (!orientation?.requestPermission || (motionPermission && !retry)) return
+  motionPermission = 'pending'
+  try {
+    motionPermission = await orientation.requestPermission()
+  } catch {
+    motionPermission = 'denied'
+  }
+}
+
+window.addEventListener('deviceorientation', ({alpha, beta, gamma}) => {
+  if (mode !== 'play' || display !== 'motion' || ![alpha, beta, gamma].every(Number.isFinite)) return
+  const radians = Math.PI / 180
+  const a = alpha * radians, b = beta * radians, g = gamma * radians
+  // Project the rear-camera axis from the device frame into east, north and up.
+  // Rotating the screen between portrait and landscape leaves this axis unchanged.
+  const east = -Math.cos(a) * Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g)
+  const north = -Math.sin(a) * Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g)
+  const up = -Math.cos(b) * Math.cos(g)
+  // Yaw becomes ambiguous when the phone is aimed straight up or down.
+  if (Math.hypot(east, north) > .1) {
+    motionHeading = Math.atan2(east, -north)
+    if (headingOffset === undefined) {
+      headingOffset = player.yaw - motionHeading
+      updateMotionButton()
+    }
+    player.yaw = motionHeading + headingOffset
+  }
+  player.pitch = Math.max(-1.25, Math.min(1.25, Math.asin(Math.max(-1, Math.min(1, up)))))
+})
+
+motionCenter.addEventListener('click', () => {
+  if (motionHeading === undefined) requestMotion(true)
+  else {
+    headingOffset = layout.startYaw - motionHeading
+    player.yaw = layout.startYaw
+  }
+})
+
 function look(dx, dy) {
+  if (display === 'motion' && motionHeading !== undefined) return
   player.yaw = (player.yaw - dx) % (Math.PI * 2)
   player.pitch = Math.max(-1.25, Math.min(1.25, player.pitch - dy))
 }
@@ -359,7 +415,7 @@ function burst(x,y,z,color,count) {
       dx:Math.cos(angle)*force,dz:Math.sin(angle)*force,dy:.48+Math.random()*(count>20?3:2),
       size:(.02+Math.random()*.045)*(count>20?2.5:1)})
   }
-  run.effects.length=Math.min(48,run.effects.length)
+  run.effects.length=Math.min(effectLimit,run.effects.length)
 }
 
 function jump() {
@@ -394,11 +450,9 @@ function greet(event) {
   let {yaw,pitch}=player
   if(event && document.pointerLockElement!==view) {
     const bounds=view.getBoundingClientRect()
-    const width=bounds.width/(display==='vr'?2:1)
-    const localX=event.clientX-bounds.left
     const fov=bounds.width<bounds.height?78:65
     const scale=Math.tan(fov*Math.PI/360)*2/bounds.height
-    yaw-=Math.atan((localX%width-width/2)*scale)
+    yaw-=Math.atan((event.clientX-bounds.left-bounds.width/2)*scale)
     pitch-=Math.atan((event.clientY-bounds.top-bounds.height/2)*scale)
   }
   const actor=targetHatchling(run.hatchlings,player,layout,yaw,pitch)
@@ -414,21 +468,26 @@ function greet(event) {
   return true
 }
 
-function tickExpedition(dt) {
+function tickExpedition(dt, dinosaurs) {
   run.time+=dt
   const time=run.time
-  if (run.jumpUntil>=time && player.y===0) {
+  if (run.jumpUntil>0 && run.jumpUntil>=time && player.vy===0) {
     player.vy=active('jump') ? 6.55 : 2.92
     run.jumpUntil=0
     audio.play('jump')
   }
   if(player.y>0 || player.vy>0) {
-    player.y+=player.vy*dt-5.1*dt*dt
-    player.vy-=10.2*dt
-    if(player.y<=0) {
-      player.y=player.vy=0
-      audio.play('land')
-      burst(player.x,.025,player.z,0xc6a67a,6)
+    const from = player.y
+    const proposed = from + player.vy*dt-5.1*dt*dt
+    const height = dinosaurJumpLimit(dinosaurs,player,from,proposed)
+    player.y = Math.max(0,height)
+    player.vy -= 10.2*dt
+    if (height !== proposed || player.y === 0) {
+      if (player.vy < -.45) {
+        audio.play('land')
+        burst(player.x,player.y+.025,player.z,0xc6a67a,6)
+      }
+      player.vy = 0
     }
   }
   if(run.charge && run.charge.until<=time) {
@@ -438,9 +497,11 @@ function tickExpedition(dt) {
       prepareMap()
       lastRoute=null
     }
-    burst(x,.55,z,0xffad54,27)
-    burst(x,.31,z,0xa89772,16)
-    audio.play('blast')
+    bombBurst(run,x,z)
+    const dx=x-player.x, dz=z-player.z
+    const distance=Math.hypot(dx,dz)
+    const pan=distance ? (Math.sin(player.yaw)*dz-Math.cos(player.yaw)*dx)/distance*.55 : 0
+    audio.play('blast',{pan,volume:1/(1+distance*.09)})
     run.charge=null
   }
   if (layout.canWalk(player.x,player.z)) player.safe=[player.x,player.z]
@@ -469,6 +530,7 @@ function tickExpedition(dt) {
     }
   }
   run.effects=run.effects.filter(fx=>time-fx.start<fx.life)
+  run.smoke=run.smoke.filter(puff=>time-puff.start<puff.life)
   for(const [kind,key,min,span] of [['bird','birdAt',3.4,8],['roar','roarAt',13,26]]) {
     if(time<run[key]) continue
     const bearing=Math.random()*2*Math.PI-player.yaw
@@ -526,7 +588,6 @@ function paint() {
     world.setHint([])
     lastRoute=null
   }
-  world.stereo = display === 'vr'
   world.draw(player)
   if (showMap || active('find')) drawMap()
 }
@@ -536,8 +597,8 @@ function tick(time) {
   const dt = Math.max(0, Math.min(.05, (time - lastFrame) / 1000))
   lastFrame = time
   const oldX=player.x, oldZ=player.z
-  tickExpedition(dt)
-  const canWalk=(x,z)=>layout.canWalk(x,z,player.y,active('phase'))
+  const dinosaurs = world.dinosaurColliders(player)
+  tickExpedition(dt, dinosaurs)
   const down = (...codes) => codes.some(code => keys.has(code))
   const forward = Number(down('KeyW', 'ArrowUp')) - Number(down('KeyS', 'ArrowDown')) - stick.y
   const strafe = Number(down('KeyD')) - Number(down('KeyA')) + stick.x
@@ -549,18 +610,12 @@ function tick(time) {
     const distance = speed * dt / Math.max(1, Math.hypot(forward, strafe))
     const sin = Math.sin(player.yaw)
     const cos = Math.cos(player.yaw)
-    const dx = (sin * forward - cos * strafe) * distance
-    const dz = (cos * forward + sin * strafe) * distance
-    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / .05))
-    for (let i = 0; i < steps; i++) {
-      const x = player.x + dx / steps
-      const z = player.z + dz / steps
-      if (canWalk(x, z)) {
-        player.x = x
-        player.z = z
-      } else if (dx && canWalk(x, player.z)) player.x = x
-      else if (dz && canWalk(player.x, z)) player.z = z
-    }
+    // Motion mode uses map directions. Tilting or turning the phone only changes the camera.
+    const dx = (display === 'motion' ? strafe : sin * forward - cos * strafe) * distance
+    const dz = (display === 'motion' ? -forward : cos * forward + sin * strafe) * distance
+    const phase = active('phase')
+    slidePlayer(player,dx,dz,(x,z) => layout.wallContact(x,z,player.y,phase)
+      ?? dinosaurContact(dinosaurs,player,x,z))
     recordStep(oldX,oldZ)
     if (player.y<.42 && layout.reachedExit(player.x, player.z)) {
       paint()
@@ -603,7 +658,9 @@ window.addEventListener('click', event => {
 choice.addEventListener('change', () => choose(Number(choice.value)))
 for (const select of [launchDisplay, pauseDisplay]) {
   select.addEventListener('change', () => {
+    if (display !== select.value) headingOffset = motionHeading = undefined
     display = select.value
+    updateMotionButton()
     game.dataset.display = launchDisplay.value = pauseDisplay.value = display
     saveSettings()
     if (display === 'browser') leaveFullscreen()
@@ -760,7 +817,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=14'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=15'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()

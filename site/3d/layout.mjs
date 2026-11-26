@@ -180,6 +180,25 @@ export class Layout {
     return walls.every(wall => this.destroyed.has(wall.segment) || segmentDistanceSquared(x, z, wall) >= this.clearance ** 2)
   }
 
+  wallContact(x,z,height,phase) {
+    const [left,top,right,bottom] = this.boundary
+    if (x <= left+.19) return [1,0]
+    if (x >= right-.19) return [-1,0]
+    if (z <= top+.19) return [0,1]
+    if (z >= bottom-.19) return [0,-1]
+    if (phase || height >= 1.26) return null
+    const walls = this.wallBins.get(binKey(Math.floor(x), Math.floor(z))) ?? []
+    for (const wall of walls) {
+      if (this.destroyed.has(wall.segment) || segmentDistanceSquared(x,z,wall) >= this.clearance**2) continue
+      const {ax,az,dx,dz,lengthSquared} = wall
+      const t = Math.max(0,Math.min(1,((x-ax)*dx+(z-az)*dz)/lengthSquared))
+      const nx = x-ax-t*dx, nz = z-az-t*dz
+      const length = Math.hypot(nx,nz)
+      return length ? [nx/length,nz/length] : [-dz/Math.sqrt(lengthSquared),dx/Math.sqrt(lengthSquared)]
+    }
+    return null
+  }
+
   clearSpot(x,z,fallback) {
     for (const radius of [.10,.17,.24,.35]) for(let i=0;i<12;i++) {
       const angle=(i/12)*Math.PI*2

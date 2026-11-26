@@ -137,7 +137,7 @@ function advance(actor,x,z,dt,speed,layout,player,others) {
         const was=Math.hypot(actor.x-px,actor.z-pz)
         return Math.hypot(xx-px,zz-pz) >= Math.min(was+.0002,min)
       }
-      if(!avoids(player.x,player.z,.16) || others.some(other=>other!==actor && !avoids(other.x,other.z,.25))) continue
+      if(!avoids(player.x,player.z,.28) || others.some(other=>other!==actor && !avoids(other.x,other.z,.25))) continue
     }
     actor.x=xx; actor.z=zz
     return step/dt

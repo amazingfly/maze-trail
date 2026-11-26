@@ -167,37 +167,13 @@ kbd { display: inline-block; min-width: 1.25rem; padding: .05rem .18rem; margin-
 .action-pad button:active { background: #edf0f3b0; }
 .action-pad button:disabled { opacity: .48; }
 
-[data-display="vr"]:not([data-mode="menu"]) #view::after {
-  position: absolute;
-  content: "";
-  inset: 0 auto 0 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  background: #142521;
-  pointer-events: none;
+[data-touch="true"]:not([data-display="motion"]) .reticle,
+[data-display="motion"] #mouse-look,
+[data-display="motion"] .mouse-setting { display: none; }
+@media (max-width: 380px) {
+  [data-display="motion"][data-mode="play"] .top .brand { display: none; }
+  [data-display="motion"][data-mode="play"] .top { justify-content: flex-end; }
 }
-[data-touch="true"]:not([data-display="vr"]) .reticle { display: none; }
-[data-display="vr"] .reticle {
-  inset: 0;
-  width: auto;
-  height: auto;
-  transform: none;
-  border: 0;
-  background: transparent;
-}
-[data-display="vr"] .reticle::before, [data-display="vr"] .reticle::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  transform: translate(-50%, -50%);
-  background: var(--cream);
-  border: 1px solid #122c27;
-  border-radius: 50%;
-}
-[data-display="vr"] .reticle::before { left: 25%; }
-[data-display="vr"] .reticle::after { left: 75%; }
 
 dialog {
   max-width: min(440px, calc(100% - 2rem)); color: var(--cream); padding: 1.55rem;

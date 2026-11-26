@@ -7,7 +7,13 @@ export class JungleAudio {
       this.music = ctx.createGain()
       this.effects = ctx.createGain()
       this.music.connect(ctx.destination)
-      this.effects.connect(ctx.destination)
+      const limiter = ctx.createDynamicsCompressor()
+      limiter.threshold.value = -5
+      limiter.knee.value = 6
+      limiter.ratio.value = 8
+      limiter.attack.value = .003
+      limiter.release.value = .16
+      this.effects.connect(limiter).connect(ctx.destination)
       this.noise = ctx.createBuffer(1,ctx.sampleRate*3,ctx.sampleRate)
       const data=this.noise.getChannelData(0)
       for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1
@@ -127,9 +133,14 @@ export class JungleAudio {
     }
     if(kind==='fuse') tone(920,500,.78,.15,{noise:true})
     if(kind==='blast') {
-      tone(120,27,.72,.51)
-      tone(2100,110,.77,.65,{noise:true})
-      tone(600,100,.26,.17,{noise:true,delay:.12})
+      tone(123,39,.88,.71,{attack:.009})
+      tone(83,46,.54,.32,{type:'triangle',attack:.012})
+      tone(5100,230,.43,.69,{noise:true,attack:.006})
+      tone(790,115,1.16,.49,{noise:true,delay:.065,attack:.047})
+      for(const [i,note] of [1318,1975,2637,1568].entries()) {
+        tone(note,note*.86,.39,.075,{delay:.09+i*.081,type:'triangle'})
+        tone(1300-i*130,240,.24,.12,{noise:true,delay:.19+i*.11})
+      }
     }
     if(kind==='bird') {
       for(let i=0;i<3+variant;i++) tone(1900+variant*450,3100-i*210,.125,.070,{delay:i*.13})

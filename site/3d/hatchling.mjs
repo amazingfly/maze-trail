@@ -226,6 +226,7 @@ function node(name,scene,parent,at=[0,0,0]) {
 
 export class Hatchling {
   constructor(scene, kind, seed=1, { adult=false }={}) {
+    this.collisionMeshes = []
     this.bodyMatrix=Matrix.Identity()
     this.bodyOrientation=new Quaternion()
     this.kind=kind
@@ -277,22 +278,23 @@ export class Hatchling {
     const ribSize=[(rex?.123:.138)*mass,.125*mass,(rex?.205:.216)*mass]
     const ribProfile=1.06
     const ribcage=hide('rounded ribcage',this.body,[0,torsoY,.002],ribSize,ribProfile)
+    this.collisionMeshes.push(ribcage)
     if(adult) addFlankScars(scene,ribcage,ribSize,ribProfile,skinMat,palette,seed)
-    hide('shoulder and breast',this.body,[0,torsoY+(adult&&long?.032:-.004),adult&&rex?.140:.121],
-      [.112*mass,(adult&&long?.136:.111)*mass,.123*mass])
-    hide('haunches',this.body,[0,torsoY-.014,-.13],[.126*mass,.119*mass,.103*mass])
+    this.collisionMeshes.push(hide('shoulder and breast',this.body,[0,torsoY+(adult&&long?.032:-.004),adult&&rex?.140:.121],
+      [.112*mass,(adult&&long?.136:.111)*mass,.123*mass]))
+    this.collisionMeshes.push(hide('haunches',this.body,[0,torsoY-.014,-.13],[.126*mass,.119*mass,.103*mass]))
 
     const neckBase=[0,torsoY+.045,.136]
     this.neck=node('neck joint',scene,this.body,neckBase)
     const neckTop=long?[0,adult?.454:.344,adult?.152:.124]:rex?[0,.091,.057]:[0,.032,.069]
-    sweep('tapered neck',scene,this.neck,[
+    this.collisionMeshes.push(sweep('tapered neck',scene,this.neck,[
       [0,-.065,-.037,.104,.092],
       [0,neckTop[1]*.16,long?.008:.034,long?.084:.094,long?.084:.085],
       [0,neckTop[1]*.41,long?.012:.048,long?.064:.082,long?.068:.074],
       [0,neckTop[1]*.69,long?.047:neckTop[2]*.78,long?.053:.078,.061],
       [0,neckTop[1]*.87,long?.085:neckTop[2]*.92,long?.049:.072,.058],
       [0,neckTop[1]+.012,neckTop[2]+.006,long?.052:.070,.059],
-    ],palette,seed,skinMat)
+    ],palette,seed,skinMat))
     this.head=node('skull pivot',scene,this.neck,neckTop)
     this.headRest=neckTop
     if (adult) {
@@ -300,7 +302,7 @@ export class Hatchling {
     }
     const headWidth=rex?.121:trike?.113:stego?.092:.087
     const snout=rex?.150:trike?.128:stego?.110:.119
-    sweep('continuous skull and upper snout',scene,this.head,[
+    this.collisionMeshes.push(sweep('continuous skull and upper snout',scene,this.head,[
       [0,.029,-.100,.005,.006],
       [0,.030,-.086,headWidth*.58,.070],
       [0,.031,-.055,headWidth*.87,.092],
@@ -311,7 +313,7 @@ export class Hatchling {
       [0,-.007,snout*1.18,headWidth*.69,.044],
       [0,-.010,snout*1.37,headWidth*.50,.029],
       [0,-.016,snout*1.45,.006,.009],
-    ],palette,seed,skinMat)
+    ],palette,seed,skinMat))
     solid('upper mouth seam',this.head,[0,-.055,snout*.70],[headWidth*.80,.013,snout*.68],lip)
     this.jaw=node('hinged lower jaw',scene,this.head,[0,-.049,-.028])
     hide('lower jaw',this.jaw,[0,-.026,snout*.84],[headWidth*.80,.034,snout*.82],.90)
@@ -467,9 +469,11 @@ export class Hatchling {
       const knee=node(arm?'wrist':'knee',scene,shoulder,[side*(arm?.011:0),-femur,arm?.020:.007])
       const ankle=node(arm?'hand':'ankle',scene,knee,[0,-shin,arm?.021:.010])
       const width=(arm?.027:front?.042:.057)*(adult?1.15:1)
-      hide('upper limb',shoulder,[0,-femur*.40,0],[width,femur*.76,width*1.05])
-      hide('lower limb',knee,[0,-shin*.45,.004],[width*.66,shin*.69,width*.72])
-      hide(arm?'hand':'padded foot',ankle,[0,-.003,.022],[width*.93,arm?.020:.030,arm?.037:.055])
+      this.collisionMeshes.push(
+        hide('upper limb',shoulder,[0,-femur*.40,0],[width,femur*.76,width*1.05]),
+        hide('lower limb',knee,[0,-shin*.45,.004],[width*.66,shin*.69,width*.72]),
+        hide(arm?'hand':'padded foot',ankle,[0,-.003,.022],[width*.93,arm?.020:.030,arm?.037:.055]),
+      )
       for(let j=0;j<(arm?2:3);j++){
         const x=(j-(arm?.5:1))*width*.53
         solid('round toe',ankle,[x,-.009,arm?.050:.061],[width*.30,arm?.013:.017,.019],bone)
@@ -479,6 +483,22 @@ export class Hatchling {
         upperRest:Math.atan2(knee.position.z,femur),lowerRest:Math.atan2(ankle.position.z,shin),
       })
     }
+  }
+
+  tailCollisionSections() {
+    const matrix = this.tail.computeWorldMatrix()
+    return [2,5,8,11].map(ring => {
+      const left = ring * ringSize * 3
+      const right = left + sweepSides / 2 * 3
+      const vertices = this.tailStream
+      const center = new Vector3()
+      Vector3.TransformCoordinatesFromFloatsToRef(
+        (vertices[left]+vertices[right])*.5, (vertices[left+1]+vertices[right+1])*.5,
+        (vertices[left+2]+vertices[right+2])*.5, matrix, center)
+      const scale = this.root.scaling.x
+      const radius = Math.abs(vertices[left]-vertices[right])*.5*scale
+      return {center,radius,length:this.tailLength/13*1.8*scale}
+    })
   }
 
   pose(time,{walk=0,gaitTime=time,action='',progress=0,voice=0,interest=0,bank=0}={}) {

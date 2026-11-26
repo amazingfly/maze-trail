@@ -2,12 +2,12 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder.js'
 import { Hatchling } from './hatchling.mjs'
 import { voiceEnvelope, trailheadDinosaurs } from './hatchling-play.mjs'
-import { Viewport } from '@babylonjs/core/Maths/math.viewport.js'
 import { Camera } from '@babylonjs/core/Cameras/camera.js'
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera.js'
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight.js'
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight.js'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js'
+import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder.js'
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder.js'
 import { fern, creeper, broadleaf, hedgeShoot } from './flora.mjs'
 import { Texture } from '@babylonjs/core/Materials/Textures/texture.js'
@@ -25,7 +25,7 @@ import '@babylonjs/core/Meshes/thinInstanceMesh.js'
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js'
 import { Scene } from '@babylonjs/core/scene.js'
 import earcut from 'earcut'
-import { crystals } from './expedition.mjs'
+import { crystals, effectLimit, smokeLimit } from './expedition.mjs'
 import { TrackGround, trackShapes, trackMesh } from './tracks.mjs'
 
 // Scene materials and landmark models live here so artwork can change independently of gameplay.
@@ -466,13 +466,6 @@ export class World {
     this.camera = new TargetCamera('first person', Vector3.Zero(), scene)
     this.camera.minZ = .025
     this.camera.maxZ = 130
-    this.eyes = ['left', 'right'].map((side, index) => {
-      const camera = new TargetCamera(side + ' eye', Vector3.Zero(), scene)
-      camera.minZ = this.camera.minZ
-      camera.maxZ = this.camera.maxZ
-      camera.viewport = new Viewport(index * .5, 0, .5, 1)
-      return camera
-    })
     this.overhead = new TargetCamera('overhead', Vector3.Zero(), scene)
     this.overhead.mode = Camera.ORTHOGRAPHIC_CAMERA
     this.overhead.minZ = .1
@@ -491,6 +484,9 @@ export class World {
     this.hatchlings=[]
     this.trackVisuals=new Map()
     this.particleVisuals=[]
+    this.smokeVisuals=[]
+    this.smokeMaterial=null
+    this.blastRing=this.blastCore=null
     this.bombVisual=null
     this.heldBomb=null
     this.trailheadModels=displayAtTrailhead(scene,layout)
@@ -644,6 +640,13 @@ export class World {
     for (const mesh of this.trackVisuals.values()) mesh.dispose()
     this.trackMaterial?.dispose()
     for (const mesh of this.particleVisuals) mesh.dispose(false,true)
+    for (const mesh of this.smokeVisuals) mesh.dispose()
+    this.smokeMaterial?.dispose(false,true)
+    this.blastRing?.dispose(false,true)
+    this.blastCore?.dispose(false,true)
+    this.blastRing=this.blastCore=null
+    this.smokeMaterial=null
+    this.smokeVisuals=[]
     this.bombVisual?.dispose(false,true)
     this.heldBomb?.dispose(false,true)
     this.bombVisual=this.heldBomb=null
@@ -684,13 +687,52 @@ export class World {
       claw.rotation.x=.45
       claw.material=surface(this.scene,'dinosaur claw',0x7a903b)
     }
-    for(let i=0;i<48;i++) {
+    for(let i=0;i<effectLimit;i++) {
       const mesh=CreateIcoSphere('effect particle',{subdivisions:1,radius:1},this.scene)
       mesh.material=surface(this.scene,'particle tint',0xffad58,.65)
       mesh.setEnabled(false)
       this.particleVisuals.push(mesh)
     }
+    this.createBlastVisuals()
     this.updateTracks()
+  }
+
+  createBlastVisuals() {
+    const scene=this.scene
+    const mist=new DynamicTexture('soft blast smoke',128,scene,true)
+    const ctx=mist.getContext()
+    for(const [x,y,r] of [[58,63,49],[40,50,32],[74,44,34],[79,76,38],[51,80,34]]) {
+      const shade=ctx.createRadialGradient(x,y,3,x,y,r)
+      shade.addColorStop(0,'#b7a9c883')
+      shade.addColorStop(.55,'#81748e54')
+      shade.addColorStop(1,'#675d7900')
+      ctx.fillStyle=shade
+      ctx.fillRect(x-r,y-r,r*2,r*2)
+    }
+    mist.hasAlpha=true
+    mist.update()
+    this.smokeMaterial=surface(scene,'violet dust',0xffffff)
+    this.smokeMaterial.diffuseTexture=mist
+    this.smokeMaterial.useAlphaFromDiffuseTexture=true
+    this.smokeMaterial.emissiveColor=color3(0x84778c)
+    this.smokeMaterial.disableLighting=true
+    this.smokeMaterial.backFaceCulling=false
+    for(let i=0;i<smokeLimit;i++){
+      const puff=CreatePlane('drifting smoke',{size:1},scene)
+      puff.material=this.smokeMaterial
+      puff.billboardMode=Mesh.BILLBOARDMODE_ALL
+      puff.isPickable=false
+      puff.setEnabled(false)
+      this.smokeVisuals.push(puff)
+    }
+    this.blastRing=CreateTorus('crystal shockwave',{diameter:2,thickness:.028,tessellation:32},scene)
+    this.blastCore=CreatePolyhedron('crystal flash',{type:1,size:1},scene)
+    for(const [mesh,color] of [[this.blastRing,0xca8bff],[this.blastCore,0xffeadc]]) {
+      mesh.material=surface(scene,mesh.name,color,1)
+      mesh.material.disableLighting=true
+      mesh.isPickable=false
+      mesh.setEnabled(false)
+    }
   }
 
   makeBomb(name) {
@@ -723,6 +765,37 @@ export class World {
       mesh.isPickable=false
       this.trackVisuals.set(mark,mesh)
     }
+  }
+
+  dinosaurColliders(player) {
+    if (this.switchingEngine) return []
+    const colliders = []
+    for (const {model,x,z,yaw} of [
+      ...this.trailheadModels.map(model => ({model, x:model.root.position.x, z:model.root.position.z, yaw:model.root.rotation.y})),
+      ...this.hatchlings.map((model,index) => ({model, ...this.run.hatchlings[index]})),
+    ]) {
+      if (Math.hypot(x-player.x,z-player.z) > (model.adult ? 4.5 : 1.25)) continue
+      const cos = Math.cos(yaw), sin = Math.sin(yaw)
+      const padding = this.layout.playerRadius*.85
+      for (const mesh of model.collisionMeshes) {
+        const matrix = mesh.computeWorldMatrix().m
+        const box = mesh.getBoundingInfo().boundingBox
+        const center = box.centerWorld
+        const {x:rx,y:ry,z:rz} = box.extendSize
+        const width = Math.hypot(rx*(matrix[0]*cos-matrix[2]*sin),
+          ry*(matrix[4]*cos-matrix[6]*sin), rz*(matrix[8]*cos-matrix[10]*sin))
+        const depth = Math.hypot(rx*(matrix[0]*sin+matrix[2]*cos),
+          ry*(matrix[4]*sin+matrix[6]*cos), rz*(matrix[8]*sin+matrix[10]*cos))
+        const height = Math.hypot(rx*matrix[1],ry*matrix[5],rz*matrix[9])
+        colliders.push({x:center.x,z:center.z,cos,sin,width:width+padding,depth:depth+padding,
+          bottom:center.y-height,top:center.y+height})
+      }
+      for (const {center,radius,length} of model.tailCollisionSections()) {
+        colliders.push({x:center.x,z:center.z,cos,sin,width:radius+padding,depth:length+padding,
+          bottom:center.y-radius*.85,top:center.y+radius*.85})
+      }
+    }
+    return colliders
   }
 
   animateExpedition(player) {
@@ -771,19 +844,48 @@ export class World {
       const fx=run.effects[i]
       mesh.setEnabled(Boolean(fx))
       if (!fx) return
-      const t=time-fx.start
-      mesh.position.set(fx.x+fx.dx*t,Math.max(.03,fx.y+fx.dy*t-2.1*t*t),fx.z+fx.dz*t)
-      mesh.scaling.setAll(fx.size*Math.max(.1,1-t/fx.life))
+      const t=time-fx.start, fade=Math.max(0,1-t/fx.life)
+      const rubble=fx.kind==='rubble', shard=fx.kind==='shard'
+      const gravity=rubble?5.2:shard?3.7:2.1
+      const y=Math.max(.03,fx.y+fx.dy*t-gravity*t*t)
+      const drift=rubble && y===.03 ? Math.min(t,(fx.dy+Math.sqrt(fx.dy**2+4*gravity*(fx.y-.03)))/(2*gravity)) : t
+      mesh.position.set(fx.x+fx.dx*drift,y,fx.z+fx.dz*drift)
+      const size=fx.size*(rubble?Math.min(1,fade*3):fade)
+      mesh.scaling.set(size*(shard?.44:1),size*(shard?2.6:rubble?.72:1),size*(shard?.58:1))
       mesh.rotation.set(t*7+i,t*5+i,t*4)
       mesh.material.diffuseColor=color3(fx.color)
-      mesh.material.emissiveColor=mesh.material.diffuseColor.scale(.50+.50*(1-t/fx.life))
+      mesh.material.emissiveColor=mesh.material.diffuseColor.scale(rubble?.05:shard?1.15:.5+.5*fade)
     })
+    this.smokeVisuals.forEach((mesh,i)=>{
+      const puff=run.smoke[i]
+      const t=puff ? time-puff.start : -1
+      mesh.setEnabled(t>=0)
+      if(t<0) return
+      mesh.position.set(puff.x+puff.dx*t,puff.y+puff.dy*t,puff.z+puff.dz*t)
+      mesh.scaling.setAll(puff.size+t*.73)
+      mesh.rotation.z=t*puff.spin+i
+      const phase=t/puff.life
+      mesh.visibility=.9*Math.min(1,phase*10)*(1-phase)
+    })
+    const flash=run.blastFlash
+    const age=flash ? time-flash.start : Infinity
+    this.blastCore.setEnabled(age<.24)
+    this.blastRing.setEnabled(age<.53)
+    if(age<.24) {
+      this.blastCore.position.set(flash.x,.53,flash.z)
+      this.blastCore.rotation.set(age*8,age*14,age*6)
+      this.blastCore.scaling.setAll(.34+age*4)
+      this.blastCore.material.alpha=1-age/.24
+    }
+    if(age<.53) {
+      this.blastRing.position.set(flash.x,.13+age*.11,flash.z)
+      this.blastRing.scaling.setAll(.32+age*4.2)
+      this.blastRing.material.alpha=(1-age/.53)**1.45
+    }
   }
 
   render(camera, fogDensity) {
-    const cameras = camera === this.camera && this.stereo ? this.eyes : null
-    if (this.scene.activeCameras !== cameras) this.scene.activeCameras = cameras
-    if (!cameras) this.scene.activeCamera = camera
+    this.scene.activeCamera = camera
     this.scene.fogDensity = fogDensity
     this.engine.beginFrame()
     try {
@@ -807,15 +909,6 @@ export class World {
     const horizontal = Math.cos(pitch)
     this.camera.setTarget(this.target.set(x + Math.sin(yaw) * horizontal, height + Math.sin(pitch),
       z + Math.cos(yaw) * horizontal))
-    if (this.stereo) {
-      const rightX = -Math.cos(yaw), rightZ = Math.sin(yaw)
-      this.eyes.forEach((camera, index) => {
-        const offset = index ? .032 : -.032
-        camera.position.set(x + rightX * offset, height, z + rightZ * offset)
-        camera.fov = this.camera.fov
-        camera.rotation.copyFrom(this.camera.rotation)
-      })
-    }
     this.animateExpedition(player)
     this.render(this.camera, .028)
   }
