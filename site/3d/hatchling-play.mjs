@@ -41,7 +41,7 @@ export function findHatchlings(layout, level, loot) {
       kind:kinds[(level+index+2)%kinds.length],x,z,yaw,walk:0,clock:0,interest:0,
       action:'',actionAt:0,actionLength:0,nextAction:2+index*2,nextCall:3+index*3,
       points:[[x,z],[(x+crossX)/2,(z+crossZ)/2],[crossX,crossZ],[(tx+crossX)/2,(tz+crossZ)/2],[crossX,crossZ],[(x+crossX)/2,(z+crossZ)/2]],
-      nextPoint:1,home:[x,z],
+      nextPoint:1,
     }
   })
 }

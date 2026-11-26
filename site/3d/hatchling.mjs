@@ -173,13 +173,13 @@ export class Hatchling {
     const bone=material('horn, beak and claws',0xf9dbab)
     const almond=material('warm sclera',0xfff2d6,1)
     const eyeTint=material('iris',iris,1)
-    const eyeRidge=material('orbital rim',skin)
+    const eyeRidge=kind==='rex' ? material('orbital rim',skin) : null
     const pupil=material('pupil',0x171825,1)
     const shine=material('catchlight',0xfffcf1)
     shine.emissiveColor=rgb(0xfffcf1)
     const crest=material('warm display scales',accent)
-    const deepCrest=material('display ridge',accent)
-    deepCrest.diffuseColor=Color3.Lerp(rgb(accent),rgb(shadow),.33)
+    const deepCrest=kind==='trike' || kind==='stego' ? material('display ridge',accent) : null
+    if (deepCrest) deepCrest.diffuseColor=Color3.Lerp(rgb(accent),rgb(shadow),.33)
     const solid=(name,parent,at,size,mat)=> {
       const mesh=volume(name,scene,parent,at,size,null,seed)
       mesh.material=mat
