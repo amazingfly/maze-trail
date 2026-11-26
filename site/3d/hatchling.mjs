@@ -15,12 +15,12 @@ const clamp = value => Math.min(1,Math.max(0,value))
 const smooth = value => { const t=clamp(value); return t*t*(3-2*t) }
 
 const adultCoats = {
-  trike:    { skin:0x9b5840, shadow:0x553d38, cream:0xc69768, accent:0xbb7450 },
-  stego:    { skin:0x507466, shadow:0x354742, cream:0xaaa371, accent:0xca8248 },
-  rex:      { skin:0x7c8045, shadow:0x363b29, cream:0xb6a268, accent:0x967341 },
-  longneck: { skin:0x577d8c, shadow:0x374e61, cream:0xa6c7bc, accent:0x798dab },
+  trike:    { skin:0xb9684d, shadow:0x704638, cream:0xd9aa78, accent:0xd6855b },
+  stego:    { skin:0x5b9078, shadow:0x3e5e50, cream:0xc3bd84, accent:0xe39a53 },
+  rex:      { skin:0x949a52, shadow:0x505734, cream:0xceb778, accent:0xb68b4c },
+  longneck: { skin:0x6597a9, shadow:0x416478, cream:0xb5d9ce, accent:0x90a6c9 },
 }
-const mix = (a,b,t) => a+(b-a)*t
+
 
 function shade(position, id, palette, underside) {
   const [x,y,z]=position
@@ -29,15 +29,18 @@ function shade(position, id, palette, underside) {
   const scales=Math.abs(Math.sin(290*x+2*Math.cos(z*184))*Math.sin(238*z+193*y))
   const mottle=.25+.21*ripple+.13*Math.sin(x*71-z*57+y*45+id)
   const light=.86+.14*scales+.11*Math.sin(11*x-13*z)
-  const band=Math.sin(z*(palette.kind==='rex'?34:23)+9*x+7*y+Math.sin(x*33))
+  const phase=palette.patternPhase
+  const band=Math.sin(z*(palette.kind==='rex'?38:25)+9*x+7*y+Math.sin(x*33)+phase)
   const markings=palette.kind==='rex' ? Math.max(0,band-.44)*.73
     : palette.kind==='stego' ? Math.max(0,band-.58)*.45 : 0
   const color=Color3.Lerp(palette.skin,palette.shadow,clamp(mottle+markings))
-  const fleck=Math.sin(x*121-y*48)*Math.cos(z*99+y*71)
-  if (palette.kind==='longneck' || palette.kind==='trike') {
-    const amount=palette.kind==='longneck'?.40:.28
-    Color3.LerpToRef(color,palette.accent,Math.max(0,fleck-.55)*amount,color)
-  }
+  // Broad markings survive distance filtering; keep the fine scale relief in the texture.
+  const dapple=Math.sin(58*z+phase+1.2*Math.sin(y*22))*Math.cos(59*y-12*x-phase)
+  let pigment
+  if(palette.kind==='rex') pigment=.27*smooth((band+.36)/.39)*smooth((.5-band)/.45)
+  else if(palette.kind==='stego') pigment=.30*smooth((-band-.23)/.58)
+  else pigment=(palette.kind==='longneck'?.55:.44)*smooth((dapple-.30)/.54)
+  Color3.LerpToRef(color,palette.accent,pigment*(1-underside),color)
   const belly=Color3.Lerp(color,palette.cream,clamp(underside))
   return [belly.r*light,belly.g*light,belly.b*light,1]
 }
@@ -51,7 +54,8 @@ function scaleTexture(scene,seed) {
   ctx.fillRect(0,0,128,128)
   for(let y=0;y<16;y++)for(let x=0;x<16;x++) {
     const cx=x*8+(y%2)*4+(next()-.5)*3.6,cy=y*8+(next()-.5)*3.6
-    const rx=2.9+next()*1.4,ry=2.6+next()*1.4
+    const cluster=Math.sin(x*TAU/8+y*TAU/16)*Math.cos(y*TAU/8+seed)
+    const rx=2.9+next()*1.4+.48*cluster,ry=2.6+next()*1.4-.42*cluster
     const tone=Math.round(225+next()*25)
     const tilt=(next()-.5)*.8
     for(const ox of [-128,0,128])for(const oy of [-128,0,128]) {
@@ -68,13 +72,17 @@ function scaleTexture(scene,seed) {
   return map
 }
 
+function profiledWidth(profile,z) {
+  return 1+(profile-1)*Math.cos(z*Math.PI/2)
+}
+
 function volume(name, scene, parent, at, size, palette, seed, profile = 1) {
   const mesh=CreateSphere(name,{segments:Math.max(...size)>.065?16:8,diameter:2},scene)
   const positions=mesh.getVerticesData('position')
   const colors=[]
   for(let i=0;i<positions.length;i+=3){
     const x=positions[i],y=positions[i+1],z=positions[i+2]
-    const shoulder=1+(profile-1)*Math.cos(z*Math.PI/2)
+    const shoulder=profiledWidth(profile,z)
     positions[i]=x*size[0]*shoulder
     positions[i+1]=y*size[1]
     positions[i+2]=z*size[2]
@@ -97,6 +105,46 @@ function volume(name, scene, parent, at, size, palette, seed, profile = 1) {
   mesh.parent=parent
   mesh.isPickable=false
   return mesh
+}
+
+// A thin, tapered ridge hugs the profiled ribcage and inherits its body motion.
+function addFlankScars(scene,ribcage,[rx,ry,rz],profile,material,palette,seed) {
+  const positions=[],indices=[],colors=[],normals=[],uvs=[]
+  const pale=Color3.Lerp(palette.skin,palette.cream,.72)
+  const edge=Color3.Lerp(palette.skin,palette.shadow,.23)
+  const count=1+seed%2
+  const side=seed%3===0 ? -1 : 1
+  for(let mark=0;mark<count;mark++){
+    const first=positions.length/3
+    const length=mark===0?.59:.37
+    for(let row=0;row<=10;row++){
+      const t=row/10
+      const y=.44+(seed%5)*.017-length*t
+      const z=-.19+mark*.14+length*.55*t+.023*Math.sin(t*TAU+.7*seed)
+      const width=.026*Math.sin(Math.PI*t)**.72+.001
+      for(let col=0;col<3;col++){
+        const offset=col-1, v=z+offset*width
+        const x=side*rx*Math.sqrt(1-y*y-v*v)*profiledWidth(profile,v)
+        positions.push(x+side*(col===1?.0009:.0002),ry*y,rz*v)
+        const n=new Vector3(x/(rx*rx),y/ry,v/rz).normalize()
+        normals.push(n.x,n.y,n.z)
+        const tint=col===1?pale:edge
+        colors.push(tint.r,tint.g,tint.b,1)
+        uvs.push(t*.25,(v+1)*.5)
+        if(row && col){
+          const i=first+row*3+col
+          indices.push(i-4,i-3,i,i-4,i,i-1)
+        }
+      }
+    }
+  }
+  const mesh=new Mesh('healed flank scars',scene)
+  const data=new VertexData()
+  Object.assign(data,{positions,indices,colors,normals,uvs})
+  data.applyToMesh(mesh)
+  mesh.parent=ribcage
+  mesh.material=material
+  mesh.isPickable=false
 }
 
 const sweepSides=16
@@ -184,7 +232,7 @@ export class Hatchling {
     this.type=species[kind]
     this.adult=adult
     const {skin,shadow,cream,accent,iris}={...this.type,...(adult ? adultCoats[kind] : {})}
-    const palette={kind,skin:rgb(skin),shadow:rgb(shadow),cream:rgb(cream),accent:rgb(accent)}
+    const palette={kind,patternPhase:(seed*.61803398875%1)*TAU,skin:rgb(skin),shadow:rgb(shadow),cream:rgb(cream),accent:rgb(accent)}
     this.root=node(this.type.name+(adult?' adult':' hatchling'),scene,null)
     this.root.scaling.setAll(adult?5:1)
     this.body=node('body and hips',scene,this.root)
@@ -226,7 +274,10 @@ export class Hatchling {
     const rex=kind==='rex', long=kind==='longneck', trike=kind==='trike', stego=kind==='stego'
     const torsoY=rex?.355:long?.355:.288
     const mass=adult?1.17:1
-    hide('rounded ribcage',this.body,[0,torsoY,.002],[(rex?.123:.138)*mass,.125*mass,(rex?.205:.216)*mass],1.06)
+    const ribSize=[(rex?.123:.138)*mass,.125*mass,(rex?.205:.216)*mass]
+    const ribProfile=1.06
+    const ribcage=hide('rounded ribcage',this.body,[0,torsoY,.002],ribSize,ribProfile)
+    if(adult) addFlankScars(scene,ribcage,ribSize,ribProfile,skinMat,palette,seed)
     hide('shoulder and breast',this.body,[0,torsoY+(adult&&long?.032:-.004),adult&&rex?.140:.121],
       [.112*mass,(adult&&long?.136:.111)*mass,.123*mass])
     hide('haunches',this.body,[0,torsoY-.014,-.13],[.126*mass,.119*mass,.103*mass])

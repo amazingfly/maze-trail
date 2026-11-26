@@ -1,8 +1,8 @@
 export const species = {
-  trike: { name:'Triceratops', skin:0xbd634c, shadow:0x723645, cream:0xffbd82, accent:0xef945d, iris:0x6fbc97, gait:1.32, voice:248 },
-  stego: { name:'Stegosaurus', skin:0x408e7a, shadow:0x24516a, cream:0xd9da8b, accent:0xf5ab47, iris:0xf2b553, gait:1.46, voice:310 },
-  rex: { name:'T. rex', skin:0x78903f, shadow:0x3f5938, cream:0xeace8b, accent:0xcd8d49, iris:0xffab41, gait:1.75, voice:177 },
-  longneck: { name:'Brachiosaurus', skin:0x499ba9, shadow:0x3e6295, cream:0xacf0d1, accent:0xbcc3ef, iris:0xeea774, gait:1.19, voice:385 },
+  trike: { name:'Triceratops', skin:0xd6755d, shadow:0x903f4e, cream:0xffcb94, accent:0xff9e64, iris:0x6fbc97, gait:1.32, voice:248 },
+  stego: { name:'Stegosaurus', skin:0x49ab8e, shadow:0x286778, cream:0xe1e89c, accent:0xffba4f, iris:0xf2b553, gait:1.46, voice:310 },
+  rex: { name:'T. rex', skin:0x92aa4c, shadow:0x506d3c, cream:0xf1db94, accent:0xe2a052, iris:0xffab41, gait:1.75, voice:177 },
+  longneck: { name:'Brachiosaurus', skin:0x59b3c2, shadow:0x4778a9, cream:0xbbf6d9, accent:0xcbd2fa, iris:0xeea774, gait:1.19, voice:385 },
 }
 
 
