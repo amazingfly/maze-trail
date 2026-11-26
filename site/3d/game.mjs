@@ -186,7 +186,7 @@ function syncAssists() {
 }
 
 function resetPlayer() {
-  const [x, z] = layout.start
+  const [x, z] = layout.spawn
   player = { x, z, yaw: layout.startYaw, pitch: 0, y:0, vy:0, safe:[x,z] }
   if (layout.destroyed.size) {
     layout.resetWalls()
@@ -194,7 +194,7 @@ function resetPlayer() {
     prepareMap()
   }
   run=newExpedition(layout)
-  run.hatchlings=findHatchlings(layout,selection,run.loot)
+  run.hatchlings=findHatchlings(layout,selection)
   byId('hatchling-count').textContent='0/'+run.hatchlings.length
   world.setExpedition(run)
   updatePowers()
@@ -263,6 +263,10 @@ function prepareMap() {
   ctx.clearRect(0, 0, size, size)
   ctx.fillStyle = '#315b4e'
   ctx.beginPath()
+  layout.trail.forEach(([x,z],i)=>i ? ctx.lineTo(...projectMap(x,z)) : ctx.moveTo(...projectMap(x,z)))
+  ctx.closePath()
+  ctx.fill()
+  ctx.beginPath()
   for (const polygon of layout.data.polygons) {
     if (!polygon) continue
     ctx.moveTo(...projectMap(...polygon[0]))
@@ -279,6 +283,10 @@ function prepareMap() {
   ctx.lineCap = 'round'
   ctx.strokeStyle = '#a6c9ae'
   ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(...projectMap(...layout.entrance), 5, 0, Math.PI * 2)
+  ctx.fillStyle = '#55efed'
+  ctx.fill()
   ctx.beginPath()
   ctx.arc(...projectMap(...layout.exit), 6, 0, Math.PI * 2)
   ctx.fillStyle = '#ffd17a'
@@ -501,9 +509,11 @@ function paint() {
     }
   } else if (footprints) {
     const cell = layout.cellAt(player.x, player.z)
-    if (cell !== hintCell || lastRoute) {
-      world.setHint(layout.hintFrom(cell))
-      hintCell = cell
+    const inTrailhead=cell===undefined && layout.trailheadContains(player.x,player.z)
+    const hint=inTrailhead ? 'entrance' : cell
+    if (hint !== hintCell || lastRoute) {
+      world.setHint(inTrailhead ? [layout.spawn,layout.entrance,layout.start] : layout.hintFrom(cell))
+      hintCell = hint
     }
     lastRoute=null
   } else if(world.blueHint) {
@@ -720,7 +730,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=10'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=11'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()

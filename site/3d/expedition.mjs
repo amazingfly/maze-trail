@@ -23,6 +23,20 @@ export function newExpedition(layout) {
   const chosen = [first, ...spots.filter(spot => spot !== first).sort((a,b) => b.rank-a.rank)].filter(Boolean).slice(0,count)
   const kinds = ['bomb','gem','jump','path','gem','phase','speed','gem','find','pull']
   const loot = chosen.map(({x,z},id) => ({id,x,z,kind:kinds[id%kinds.length], collected:false}))
+  const corner=layout.testCorner()
+  const occupied=new Set(chosen.map(({cell})=>cell))
+  const route=layout.entranceRoute()
+  const entranceExtras=[0,1,2,4,6,8,10,12]
+  for (const [i,step] of entranceExtras.entries()) {
+    const kind=i%2?'jump':'bomb'
+    // Prioritize the entrance corridor, then fill nearby open cells off that route.
+    const candidates=[route[step],...route,...spots.map(spot=>spot.cell)]
+    const cell=candidates.find(cell=>cell!==undefined && cell!==corner && cell!==openings[1][0] && !occupied.has(cell))
+    if(cell===undefined) continue
+    occupied.add(cell)
+    const [x,z]=centers[cell]
+    loot.push({id:loot.length,x,z,kind,collected:false})
+  }
   // A few crystals beckon beyond the maze walls, within the cliff enclosure.
   const [left,top,right,bottom] = layout.data.bounds
   for (const [x,z,kind] of [[left-1.4,top-1.2,'gem'],[right+1.5,(top+bottom)/2,'jump'],[left-1.5,bottom+1.2,'bomb']]) {

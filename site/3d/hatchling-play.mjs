@@ -9,42 +9,46 @@ export const species = {
 const kinds = Object.keys(species)
 const deltaAngle = (a,b) => Math.atan2(Math.sin(b-a),Math.cos(b-a))
 
-export function findHatchlings(layout, level, loot) {
-  const { centers, passages, openings }=layout.data
-  const start=openings[0][0]
-  const finish=openings[1][0]
-  const neighbors=centers.map(()=>[])
-  for(const [a,b,x,z] of passages) {
-    neighbors[a].push([b,x,z])
-    neighbors[b].push([a,x,z])
-  }
-  const depth=new Map([[start,0]])
-  const queue=[start]
-  for(let i=0;i<queue.length;i++) {
-    for(const [cell] of neighbors[queue[i]]) {
-      if(depth.has(cell)) continue
-      depth.set(cell,depth.get(queue[i])+1)
-      queue.push(cell)
+export function findHatchlings(layout,level) {
+  const cell=layout.testCorner()
+  const [x,z]=layout.data.centers[cell]
+  const route=layout.entranceRoute()
+  const previous=layout.data.centers[route[Math.max(0,route.indexOf(cell)-1)]]
+  return [{
+    kind:kinds[(level+2)%kinds.length],x,z,yaw:Math.atan2(previous[0]-x,previous[1]-z),
+    walk:0,clock:0,interest:0,slot:-1,following:false,action:'',
+    actionAt:0,actionLength:0,nextAction:Infinity,nextCall:4,points:[[x,z]],nextPoint:0,
+  }]
+}
+
+export function trailheadDinosaurs(layout) {
+  const actors=[]
+  for(const adult of [true,false]) for(const [index,kind] of kinds.entries()) {
+    const side=index%2?1:-1
+    const forward=(index<2?4.15:6.7)-(adult?0:1.02)
+    const flank=adult ? (index<2?2.53:3.2) : 1.30
+    const [px,pz]=layout.spawn
+    const clear=([x,z])=>{
+      const radius=adult?1.10:.15
+      if(Math.hypot(x-px,z-pz)<radius+.5) return false
+      if(actors.some(actor=>Math.hypot(x-actor.x,z-actor.z)<radius+(actor.adult?1.08:.24)))return false
+      for(let i=0;i<8;i++){
+        const xx=x+radius*Math.cos(i*Math.PI/4),zz=z+radius*Math.sin(i*Math.PI/4)
+        if(!layout.canWalk(xx,zz) || layout.cellAt(xx,zz)!==undefined) return false
+      }
+      return layout.canWalk(x,z) && layout.cellAt(x,z)===undefined
     }
-  }
-  const occupied=new Set(loot.map(({x,z})=>centers.findIndex(([a,b])=>a===x && b===z)))
-  const viable=queue.filter(cell=>cell!==start && cell!==finish && !occupied.has(cell))
-  const near=viable.find(cell=>depth.get(cell)>=2) ?? viable[0]
-  const far=viable.filter(cell=>cell!==near).sort((a,b)=>
-    (depth.get(b)+(neighbors[b].length===1?5:0))-(depth.get(a)+(neighbors[a].length===1?5:0)))[0]
-  return [near,far].filter(cell=>cell!==undefined).map((cell,index)=>{
-    const [x,z]=centers[cell]
-    const [other,crossX,crossZ]=neighbors[cell][0]
-    const [tx,tz]=centers[other]
-    const yaw=Math.atan2(crossX-x,crossZ-z)
-    return {
-      kind:kinds[(level+index+2)%kinds.length],x,z,yaw,walk:0,clock:0,interest:0,
-      slot:index===0 ? -1 : 1, following:false,
-      action:'',actionAt:0,actionLength:0,nextAction:2+index*2,nextCall:3+index*3,
-      points:[[x,z],[(x+crossX)/2,(z+crossZ)/2],[crossX,crossZ],[(tx+crossX)/2,(tz+crossZ)/2],[crossX,crossZ],[(x+crossX)/2,(z+crossZ)/2]],
-      nextPoint:1,
+    const candidates=[]
+    for(const depth of [0,.64,1.26,1.9,2.55,3.24,3.9,4.6]) for(const shift of [0,.67,-.40,1.08]) {
+      candidates.push(layout.trailheadPoint(forward+depth,side*(flank+shift)))
     }
-  })
+    for(const depth of [5.4,7,8.8,10.3]) for(const width of [4.25,-4.25,2.25,-2.25]) {
+      candidates.push(layout.trailheadPoint(depth,width))
+    }
+    const [x,z]=candidates.find(clear) ?? candidates.find(point=>layout.canWalk(...point) && layout.cellAt(...point)===undefined)
+    actors.push({kind,adult,x,z,yaw:Math.atan2(px-x,pz-z)+side*(adult?.30:-.26)})
+  }
+  return actors
 }
 
 export function voiceEnvelope(call,time) {

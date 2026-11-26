@@ -70,9 +70,41 @@ export class Layout {
         Math.max(ax, bx) + c, Math.max(az, bz) + c)
     }
 
-    const [[start, , outward], [finish, point]] = data.openings
+    const [[start, entrance, outward], [finish, point]] = data.openings
     this.start = data.centers[start]
-    this.startYaw = Math.atan2(-outward[0], -outward[1])
+    this.entrance = entrance
+    // Some entrances sit inside a fold of the maze silhouette. Pick a clear
+    // approach instead of running the trail through the next outside wall.
+    const mazeBoundary=this.boundary
+    this.boundary=[
+      Math.min(mazeBoundary[0],entrance[0]-15), Math.min(mazeBoundary[1],entrance[1]-15),
+      Math.max(mazeBoundary[2],entrance[0]+15), Math.max(mazeBoundary[3],entrance[1]+15),
+    ]
+    let approach=outward, distance=2
+    search: for(const length of [10.15,9.25,8.15,7.3,6,4.5,3.3]) {
+      for(const turn of [0,.13,-.13,.26,-.26,.39,-.39,.51,-.51,.64,-.64]) {
+        const sin=Math.sin(turn),cos=Math.cos(turn)
+        const direction=[outward[0]*cos-outward[1]*sin,outward[0]*sin+outward[1]*cos]
+        const x=entrance[0]+direction[0]*length,z=entrance[1]+direction[1]*length
+        if(this.cellAt(x,z)!==undefined || !this.openLine(x,z,...this.start)) continue
+        approach=direction
+        distance=length
+        break search
+      }
+    }
+    this.approach=approach
+    this.spawn = this.trailheadPoint(distance,0)
+    this.startYaw = Math.atan2(-approach[0],-approach[1])
+    this.trail = [[0,-.28],[0,.28],[2,.53],[distance+.35,.77],[distance+1,0],[distance+.35,-.77],[2,-.53]]
+      .map(([forward,side])=>this.trailheadPoint(forward,side))
+    this.boundary=mazeBoundary
+    for (const [forward,side] of [[1,-5.65],[1,5.65],[13.6,-5.65],[13.6,5.65]]) {
+      const [x,z]=this.trailheadPoint(forward,side)
+      this.boundary[0]=Math.min(this.boundary[0],x)
+      this.boundary[1]=Math.min(this.boundary[1],z)
+      this.boundary[2]=Math.max(this.boundary[2],x)
+      this.boundary[3]=Math.max(this.boundary[3],z)
+    }
     this.finish = finish
     this.exit = point
     // A single reverse walk supplies short hints from any cell, including dead ends.
@@ -91,6 +123,43 @@ export class Layout {
   cellAt(x, z) {
     const cells = this.cellBins.get(binKey(Math.floor(x), Math.floor(z))) ?? []
     return cells.find(cell => contains(this.data.polygons[cell], x, z))
+  }
+
+  trailheadPoint(forward,side) {
+    const [x,z]=this.entrance
+    const [nx,nz]=this.approach
+    return [x+nx*forward-nz*side,z+nz*forward+nx*side]
+  }
+
+  trailheadContains(x,z) {
+    const dx=x-this.entrance[0],dz=z-this.entrance[1]
+    const [nx,nz]=this.approach
+    const forward=dx*nx+dz*nz
+    const side=dz*nx-dx*nz
+    return forward>-.3 && forward<13.4 && Math.abs(side)<5.5
+  }
+
+  groundAt(x,z) {
+    return this.cellAt(x,z)!==undefined || contains(this.trail,x,z) ? 0 : -.045
+  }
+
+  entranceRoute() {
+    const steps=[this.data.openings[0][0]]
+    while(steps.length<20) {
+      const next=this.towardExit.get(steps.at(-1))
+      if(!next) break
+      steps.push(next[0])
+    }
+    return steps
+  }
+
+  testCorner() {
+    const route=this.entranceRoute()
+    for(const cell of route.slice(1)) {
+      if(cell===this.finish) break
+      if(!this.openLine(...this.entrance,...this.data.centers[cell])) return cell
+    }
+    return route[Math.min(2,route.length-1)]
   }
 
   resetWalls() {

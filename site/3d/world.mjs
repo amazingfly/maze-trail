@@ -1,5 +1,7 @@
+import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture.js'
+import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder.js'
 import { Hatchling } from './hatchling.mjs'
-import { voiceEnvelope } from './hatchling-play.mjs'
+import { voiceEnvelope, trailheadDinosaurs } from './hatchling-play.mjs'
 import { Camera } from '@babylonjs/core/Cameras/camera.js'
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera.js'
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight.js'
@@ -28,7 +30,7 @@ import { TrackGround, trackShapes, trackMesh } from './tracks.mjs'
 // Scene materials and landmark models live here so artwork can change independently of gameplay.
 const colors = {
   sky: 0xe3d4b4, earth: 0x586844, path: 0xfff2dc,
-  entry: 0x9febaf, exit: 0xffcf4d,
+  entry: 0x49ede5, exit: 0xffcf4d,
 }
 const eye = .65
 const wallHeight = .98
@@ -249,8 +251,8 @@ function floorMesh(scene, { polygons }) {
 function gateway(scene, [, [x, z], [nx, nz]], tint, isExit) {
   const name = isExit ? 'exit gate' : 'entry gate'
   const gate = new TransformNode(name, scene)
-  const gold = surface(scene, `${name} accents`, tint, .19)
-  const dark = surface(scene, `${name} posts`, 0x285342)
+  const gold = surface(scene, `${name} accents`, tint, isExit ? .19 : .68)
+  const dark = surface(scene, `${name} posts`, isExit ? 0x285342 : 0x245769)
   function piece(material, at, scale, crystal = false) {
     const mesh = crystal ? CreatePolyhedron('exit crystal', { type: 1, size: .15 }, scene) :
       CreateBox(name, {}, scene)
@@ -267,12 +269,36 @@ function gateway(scene, [, [x, z], [nx, nz]], tint, isExit) {
   piece(gold, [0, 1.035, 0], [.96, .115, .15])
   piece(gold, [0, .015, 0], [.8, .025, .22])
   if (isExit) piece(gold, [0, 1.21, 0], [1, 1.25, 1], true)
+  else {
+    for(const side of [-1,1]) piece(gold,[side*.42,.29,0],[.10,.049,.14])
+    const sign=CreatePlane('entrance plaque',{width:.94,height:.28},scene)
+    sign.parent=gate
+    sign.position.set(0,1.25,.081)
+    const image=new DynamicTexture('entrance lettering',{width:384,height:112},scene,true)
+    const ctx=image.getContext()
+    ctx.fillStyle='#13314a'
+    ctx.fillRect(0,0,384,112)
+    ctx.strokeStyle='#63f7e9'
+    ctx.lineWidth=6
+    ctx.strokeRect(5,5,374,102)
+    ctx.font='bold 67px sans-serif'
+    ctx.fillStyle='#bafffd'
+    ctx.textAlign='center'
+    ctx.textBaseline='middle'
+    ctx.fillText('ENTER',192,59)
+    image.update()
+    const material=surface(scene,'illuminated entrance sign',0xffffff)
+    material.emissiveTexture=image
+    material.disableLighting=true
+    material.backFaceCulling=false
+    sign.material=material
+  }
   gate.position.set(x, 0, z)
   gate.rotation.y = Math.atan2(nx, nz)
 }
 
-function scenery(scene, bounds) {
-  const [left, top, right, bottom] = bounds
+function scenery(scene, layout) {
+  const [left, top, right, bottom] = layout.data.bounds
   const cx = (left + right) / 2
   const cz = (top + bottom) / 2
   const reach = Math.max(right - left, bottom - top) * .5
@@ -300,7 +326,7 @@ function scenery(scene, bounds) {
   for (let i = 0; i < 105; i++) {
     const x = left - 12 + random() * (right - left + 24)
     const z = top - 12 + random() * (bottom - top + 24)
-    if (x > left - .65 && x < right + .65 && z > top - .65 && z < bottom + .65) continue
+    if (layout.trailheadContains(x,z) || x > left - .65 && x < right + .65 && z > top - .65 && z < bottom + .65) continue
     const size = .5 + random() * 1.5
     if (i % 4 === 0) {
       boulders.push({ at: [x, .14 * size, z], scale: [.52 * size, .31 * size, .37 * size],
@@ -322,32 +348,23 @@ function scenery(scene, bounds) {
   return terrain
 }
 
-function dinosaur(scene, [, top, right, bottom]) {
-  const model = new TransformNode('dinosaur', scene)
-  const skin = surface(scene, 'dinosaur skin', 0x75b755)
-  const belly = surface(scene, 'dinosaur belly', 0xd1cf77)
-  const pupil = surface(scene, 'dinosaur eyes', 0x203b2a)
-  function part(material, position, scale, tilt = 0) {
-    const mesh = CreateIcoSphere('dinosaur part', { subdivisions: 2 }, scene)
-    mesh.material = material
-    mesh.parent = model
-    mesh.position.set(...position)
-    mesh.scaling.set(...scale)
-    mesh.rotation.z = tilt
+function displayAtTrailhead(scene,layout) {
+  const markers=[]
+  for(const distance of [1.18,2.53,4.36,6.06,8.0]) for(const side of [-1,1]) {
+    const [x,z]=layout.trailheadPoint(distance,side*.66)
+    markers.push({at:[x,.078,z],scale:[.095,.128,.095],yaw:0})
   }
-  part(skin, [0, .8, 0], [.73, .39, .32])
-  part(belly, [-.04, .67, 0], [.59, .25, .28])
-  for (const x of [-.36, .38]) {
-    for (const z of [-.19, .19]) part(skin, [x, .38, z], [.14, .39, .14], -.08)
-  }
-  part(skin, [-.72, .75, 0], [.56, .14, .14], .22)
-  part(skin, [.47, 1.26, 0], [.20, .65, .18], -.23)
-  part(skin, [.70, 1.81, 0], [.33, .17, .20], -.13)
-  part(belly, [.79, 1.73, 0], [.22, .09, .16])
-  for (const z of [-.174, .174]) part(pupil, [.77, 1.86, z], [.046, .055, .035])
-  model.position.set(right + 1.18, 0, (top + bottom) / 2 + .8)
-  model.rotation.y = -2.25
-  model.scaling.setAll(1.35)
+  const beacon=surface(scene,'turquoise trail markers',0x54d5cf,.37)
+  addBatch(scene,'turquoise trail markers',CreateCylinder,
+    {diameter:1,height:1,tessellation:6},markers,0x54d5cf,beacon)
+  return trailheadDinosaurs(layout).map((actor,index)=>{
+    const model=new Hatchling(scene,actor.kind,layout.data.centers.length+index,{adult:actor.adult})
+    model.root.position.set(actor.x,layout.groundAt(actor.x,actor.z),actor.z)
+    model.root.rotation.y=actor.yaw
+    if(!actor.adult) model.root.scaling.setAll(.90)
+    model.pose(index*.59)
+    return model
+  })
 }
 
 export class World {
@@ -454,8 +471,8 @@ export class World {
     this.overhead.maxZ = 170
 
     skyDome(scene)
-    const terrain=scenery(scene, layout.data.bounds)
-    const floor=floorMesh(scene, layout.data)
+    const terrain=scenery(scene,layout)
+    const floor=floorMesh(scene,{polygons:[...layout.data.polygons,layout.trail]})
     this.trackGround=new TrackGround(scene,layout.boundary,[terrain,floor])
     this.wallVisuals=[]
     this.wallMaterials=[]
@@ -468,7 +485,7 @@ export class World {
     this.particleVisuals=[]
     this.bombVisual=null
     this.heldBomb=null
-    dinosaur(scene, layout.data.bounds)
+    this.trailheadModels=displayAtTrailhead(scene,layout)
     gateway(scene, layout.data.openings[0], colors.entry, false)
     gateway(scene, layout.data.openings[1], colors.exit, true)
 
@@ -569,7 +586,7 @@ export class World {
       const base=positions.length/3
       for(let j=0;j<=steps;j++){
         const t=j/steps, xx=x+dx*t, zz=z+dz*t
-        const ground=this.layout.cellAt(xx,zz)===undefined ? -.045 : 0
+        const ground=this.layout.groundAt(xx,zz)
         positions.push(xx+nx,ground+.014,zz+nz,xx-nx,ground+.014,zz-nz)
         normals.push(0,1,0,0,1,0)
         const light=.66+.24*Math.sin((distance+length*t)*18)
@@ -693,7 +710,7 @@ export class World {
       if(this.trackVisuals.has(mark)) continue
       const mesh=trackMesh('three-toed track',{outline:trackShapes[mark.shape]},this.scene)
       mesh.material=this.trackMaterial
-      mesh.position.set(mark.x,this.layout.cellAt(mark.x,mark.z)===undefined?-.045:0,mark.z)
+      mesh.position.set(mark.x,this.layout.groundAt(mark.x,mark.z),mark.z)
       mesh.rotation.y=mark.yaw
       mesh.isPickable=false
       this.trackVisuals.set(mark,mesh)
@@ -704,9 +721,12 @@ export class World {
     const run=this.run
     if(!run) return
     const time=run.time
+    if(Math.hypot(player.x-this.layout.spawn[0],player.z-this.layout.spawn[1])<18) {
+      this.trailheadModels.forEach((model,index)=>model.pose(time+index*.59))
+    }
     run.hatchlings.forEach((actor,index)=>{
       const model=this.hatchlings[index]
-      const ground=this.layout.cellAt(actor.x,actor.z)===undefined ? -.045 : 0
+      const ground=this.layout.groundAt(actor.x,actor.z)
       model.root.position.set(actor.x,ground,actor.z)
       model.root.rotation.y=actor.yaw
       model.pose(actor.clock,{

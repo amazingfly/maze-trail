@@ -111,6 +111,7 @@ button[aria-pressed="true"] { background: var(--lime); color: var(--ink); }
 #map { display: block; width: clamp(105px, 19vw, 190px); height: auto; }
 .map-panel span { color: #ddf1db; font-size: .77rem; }
 .map-panel b { display: inline-block; width: .55em; height: .55em; border-radius: 50%; background: var(--lime); margin-inline: .4em .1em; }
+.map-panel b:nth-of-type(2) { background:#55efed; }
 .map-panel b:last-child { background: var(--apricot); }
 .reticle {
   pointer-events: none; position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
