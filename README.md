@@ -79,3 +79,5 @@ Press Space to jump. Black crystals supply charges. B equips or puts one away, a
 The CC0 audio files are [Cinematic percussion loop by Marwan Antonios](https://opengameart.org/content/cinematic-percussion-loop) and [Forest Ambience by TinyWorlds](https://opengameart.org/content/forest-ambience). Footsteps, pickups, charges, and spatial animal calls are synthesized locally with Web Audio.
 
 Each 3D maze has two hatchlings. Look at one and press C, click it, or tap it to hear it answer. The four species use procedurally modeled bodies, seeded skin patterns, and runtime jaw and limb rigs in `site/3d/hatchling.mjs`. Their patrol paths follow the printed passages.
+
+Invite a hatchling by clicking, tapping, or looking at it and pressing C. Invited hatchlings spread out to follow you, navigate around walls, and try to perform in front of you when you slow down or stop. The hatchling counter shows who has joined you in the current maze.

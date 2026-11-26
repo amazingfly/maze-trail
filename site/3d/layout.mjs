@@ -149,7 +149,36 @@ export class Layout {
     return removed
   }
 
-  navigationGrid() {
+  openLine(x,z,tx,tz) {
+    const steps=Math.ceil(Math.hypot(tx-x,tz-z)/.075)
+    for(let i=1;i<=steps;i++) {
+      const t=i/steps
+      if(!this.canWalk(x+(tx-x)*t,z+(tz-z)*t)) return false
+    }
+    return true
+  }
+
+  companionRoute(x,z,tx,tz) {
+    if(this.openLine(x,z,tx,tz)) return [[tx,tz]]
+    const {route,point,source:first}=this.navigationGrid([tx,tz],[x,z])
+    if(first<0 || route[first]<-1) return []
+    const points=[]
+    for(let at=first;at>=0;at=route[at]) points.push(point(at))
+    if(points.length && this.openLine(...points.at(-1),tx,tz)) points.push([tx,tz])
+    // Straighten the common stair-step grid route while retaining wall clearance.
+    let i=0
+    const smoothed=[]
+    while(i<points.length) {
+      let next=Math.min(i+12,points.length-1)
+      const from=smoothed.at(-1) ?? [x,z]
+      while(next>i && !this.openLine(...from,...points[next])) next--
+      smoothed.push(points[next])
+      i=next+1
+    }
+    return smoothed
+  }
+
+  navigationGrid(destination = this.data.centers[this.finish], origin = null) {
     const step=Math.min(.13,this.data.corridor*.22)
     const [left,top,right,bottom]=this.boundary
     const width=Math.floor((right-left)/step), rows=Math.floor((bottom-top)/step)
@@ -168,12 +197,14 @@ export class Layout {
       }
       return best
     }
-    const target=nearest(...this.data.centers[this.finish])
-    if(target<0) return {route,point,nearest}
+    const target=nearest(...destination)
+    const source=origin ? nearest(...origin) : -1
+    if(target<0) return {route,point,nearest,source}
     route[target]=-1
     const queue=[target]
     for(let i=0;i<queue.length;i++) {
       const parent=queue[i], [x,z]=point(parent)
+      if (parent===source) break
       for (const next of [parent-width,parent+width,parent-1,parent+1]) {
         if(route[next]!==-2) continue
         const [xx,zz]=point(next)
@@ -184,7 +215,7 @@ export class Layout {
         queue.push(next)
       }
     }
-    return {route,point,nearest}
+    return {route,point,nearest,source}
   }
 
   pathFrom(x,z) {

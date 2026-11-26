@@ -706,10 +706,11 @@ export class World {
     const time=run.time
     run.hatchlings.forEach((actor,index)=>{
       const model=this.hatchlings[index]
-      model.root.position.set(actor.x,0,actor.z)
+      const ground=this.layout.cellAt(actor.x,actor.z)===undefined ? -.045 : 0
+      model.root.position.set(actor.x,ground,actor.z)
       model.root.rotation.y=actor.yaw
       model.pose(actor.clock,{
-        walk:actor.walk,action:actor.action,progress:(time-actor.actionAt)/actor.actionLength || 0,
+        walk:actor.walk, gaitTime:actor.gaitClock, bank:actor.bank, action:actor.action,progress:(time-actor.actionAt)/actor.actionLength || 0,
         voice:voiceEnvelope(actor.call,time),interest:actor.interest,
       })
     })

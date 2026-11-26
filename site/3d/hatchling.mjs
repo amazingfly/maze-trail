@@ -132,12 +132,14 @@ function sweep(name,scene,parent,sections,palette,seed,material) {
 
 function plate(name,scene,parent,at,width,height,depth,material) {
   // A rounded lozenge with an offset bevel and a softer silhouette than a flat triangle.
-  return sweep(name,scene,parent,[
-    [at[0],at[1]-.022,at[2],depth*.52,width*.55],
-    [at[0]-.012,at[1]+height*.26,at[2],depth,width],
-    [at[0]-.021,at[1]+height*.68,at[2]-.013,depth*.65,width*.75],
-    [at[0]-.017,at[1]+height,at[2]-.027,.003,.004],
+  const mesh=sweep(name,scene,parent,[
+    [0,-.022,0,depth*.52,width*.55],
+    [-.012,height*.26,0,depth,width],
+    [-.021,height*.68,-.013,depth*.65,width*.75],
+    [-.017,height,-.027,.003,.004],
   ],null,0,material)
+  mesh.position.set(...at)
+  return mesh
 }
 
 function node(name,scene,parent,at=[0,0,0]) {
@@ -270,6 +272,14 @@ export class Hatchling {
           [.007,.029,.006],deepCrest)
         rib.rotation.z=a-Math.PI/2
       }
+      for(let i=0;i<9;i++) {
+        const a=-.17+i*(Math.PI+.34)/8
+        const x=.132*Math.cos(a),y=.061+.111*Math.sin(a)
+        const r=.009+.004*Math.sin(i*2.2)
+        // The back of the frill carries a second row of darker growth marks.
+        const rear=-.075-.038*Math.sqrt(Math.max(0,1-(x/.178)**2-((y-.060)/.154)**2))-(y-.060)*.15
+        solid('rear frill speckles',this.head,[x,y,rear],[r,r*1.3,.008],crest)
+      }
       for(let i=0;i<11;i++) {
         const a=-.30+i*(Math.PI+.6)/10
         const x=.166*Math.cos(a),y=.057+.137*Math.sin(a)
@@ -287,7 +297,11 @@ export class Hatchling {
         const z=.151-i*.049
         const y=torsoY+.099+.017*Math.sin(i*.6)
         const h=.050+.087*Math.sin((i+1)*Math.PI/8)
-        plate('alternating sail plate',scene,this.body,[(i%2?.039:-.039),y,z],.034,h,.022,i%2?crest:deepCrest)
+        const side=i%2?1:-1
+        const sail=plate('alternating sail plate',scene,this.body,[side*.039,y,z],.035,h,.022,i%2?crest:deepCrest)
+        sail.rotation.y=side*.15+.08*Math.sin(i*1.7)
+        const ridge=solid('plate growth edge',this.body,[side*.054,y+h*.41,z+.009],[.012,h*.29,.014],i%2?deepCrest:crest)
+        ridge.rotation.x=.29
       }
     }
     if(rex || long) for(let i=0;i<(rex?5:7);i++){
@@ -343,9 +357,9 @@ export class Hatchling {
     }
   }
 
-  pose(time,{walk=0,action='',progress=0,voice=0,interest=0}={}) {
+  pose(time,{walk=0,gaitTime=time,action='',progress=0,voice=0,interest=0,bank=0}={}) {
     const t=time
-    const gait=t*TAU*this.type.gait+.19*Math.sin(t*2.1)
+    const gait=gaitTime*TAU*this.type.gait+.19*Math.sin(gaitTime*2.1)
     const act=Math.sin(Math.PI*clamp(progress))
     const sit=action==='sit'?Math.min(1,act*1.95):0
     const shake=action==='sneeze'?Math.sin(Math.PI*clamp((progress-.08)/.84)):0
@@ -353,21 +367,24 @@ export class Hatchling {
     const wag=action==='wag'?act:0
     const rex=this.kind==='rex'
     this.body.position.y=.005*Math.sin(t*3.1)+walk*(.013+.018*Math.sin(gait*2+.5))-.072*sit+.027*shake
-    this.body.rotation.z=walk*.047*Math.sin(gait)+.018*shake*Math.sin(progress*36)
+    this.body.rotation.z=-bank*.075*walk+walk*.047*Math.sin(gait)+.018*shake*Math.sin(progress*36)
+      +wag*.043*Math.sin(progress*TAU*2.45+.5)
     this.body.rotation.x=sit*-.14+walk*.038*Math.sin(gait*2)-.07*shake
+    this.body.rotation.y=wag*.065*Math.sin(progress*TAU*2.45+.8)
     this.neck.rotation.x=.035*Math.sin(t*2.3)+walk*.071*Math.sin(gait+.7)-.20*sit+.31*scratch
     this.head.position.set(0,this.headRest[1]-.028*scratch,this.headRest[2]-.035*scratch)
     const sneezeSnap=Math.exp(-((progress-.47)**2)/.003)
     const sneezeRecoil=Math.exp(-((progress-.58)**2)/.008)
     this.head.rotation.x=.030*Math.sin(t*2.2+.5)+walk*.105*Math.sin(gait+.33)
       +shake*(.47*sneezeSnap-.28*sneezeRecoil)+.23*scratch
-    this.head.rotation.y=interest*.43+.077*Math.sin(t*1.9)+walk*.041*Math.sin(gait)+shake*.26*Math.sin(progress*32)
+    this.head.rotation.y=interest*.43+bank*.23*walk+.077*Math.sin(t*1.9)+walk*.041*Math.sin(gait)+shake*.26*Math.sin(progress*32)
     this.head.rotation.z=.060*Math.sin(t*1.1)+shake*.15*Math.sin(progress*32)
     this.jaw.rotation.x=.012+voice*.67+shake*.34*Math.exp(-((progress-.49)**2)/.013)
     const blinkTick=(t+.27)%(3.37+this.type.gait*.7)
     const blink=1-.91*Math.sin(Math.PI*clamp(blinkTick/.17))
     for(const eye of this.eyes) eye.scaling.y=blink*(1-.35*shake)
-    const tailWave=(.054+.07*walk+.16*wag)*Math.sin(t*(wag?11:3.9))
+    const tailWave=(.054+.07*walk)*Math.sin(t*3.9)+wag*.13*Math.sin(progress*TAU*2.45)
+      -bank*.11*walk
     const rearLift=.013*Math.sin(t*2.7)+.036*walk*Math.sin(gait+.4)-.046*sit
     for(let i=0;i<this.tailRest.length;i+=3) {
       const back=clamp(-this.tailRest[i+2]/this.tailLength)
@@ -388,11 +405,11 @@ export class Hatchling {
     for(const {shoulder,knee,ankle,side,front,arm,femur,shin} of this.legs){
       const cycle=gait/TAU+(side===1?.5:0)+(front&&!rex?.42:0)
       const phase=cycle-Math.floor(cycle)
-      const stride=this.kind==='longneck'?.125:rex?.148:.116
+      const stride=this.kind==='longneck'?.153:rex?.204:.145
       const swing=phase>.61
       const swingProgress=(phase-.61)/.39
       const forward=walk*stride*(swing ? -.5+.5*(1-Math.cos(Math.PI*swingProgress)) : .5-phase/.61)
-      const lift=swing ? walk*.062*Math.sin(Math.PI*swingProgress) : 0
+      const lift=swing ? walk*(rex?.066:.055)*Math.sin(Math.PI*swingProgress) : 0
       const reach=arm && side===1 ? scratch : 0
       if(arm) {
         shoulder.position.z=.121+.042*reach
@@ -402,7 +419,7 @@ export class Hatchling {
         ankle.rotation.x=.12*Math.sin(t*4.2+side)+reach*.71
         continue
       }
-      const targetZ=forward+sit*(front?.039:.093)
+      const targetZ=forward+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
       const hip=shoulder.position
       const drop=hip.y+this.body.position.y-Math.sin(this.body.rotation.x)*hip.z
         +Math.sin(this.body.rotation.z)*hip.x-.029-lift

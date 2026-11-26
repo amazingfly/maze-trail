@@ -1,4 +1,4 @@
-import { species, findHatchlings, walkHatchlings, targetHatchling, callHatchling } from './hatchling-play.mjs'
+import { species, findHatchlings, walkHatchlings, targetHatchling, callHatchling, recruitHatchling } from './hatchling-play.mjs'
 import { Layout } from './layout.mjs'
 import { crystals, newExpedition } from './expedition.mjs'
 import { JungleAudio } from './sound.mjs'
@@ -195,6 +195,7 @@ function resetPlayer() {
   }
   run=newExpedition(layout)
   run.hatchlings=findHatchlings(layout,selection,run.loot)
+  byId('hatchling-count').textContent='0/'+run.hatchlings.length
   world.setExpedition(run)
   updatePowers()
   footprints = false
@@ -388,8 +389,12 @@ function greet(event) {
   }
   const actor=targetHatchling(run.hatchlings,player,layout,yaw,pitch)
   if(!actor) return false
-  if(callHatchling(actor,player,run.time,audio,true)) {
-    run.message=species[actor.kind].name+' hatchling'
+  const joined=recruitHatchling(actor,run.time)
+  const replied=callHatchling(actor,player,run.time,audio,true)
+  if(joined || replied) {
+    const count=run.hatchlings.filter(item=>item.following).length
+    byId('hatchling-count').textContent=count+'/'+run.hatchlings.length
+    run.message=species[actor.kind].name+(joined?' joined you':' hatchling')
     run.messageUntil=run.time+1.5
   }
   return true
@@ -398,7 +403,6 @@ function greet(event) {
 function tickExpedition(dt) {
   run.time+=dt
   const time=run.time
-  walkHatchlings(run.hatchlings,player,time,dt,layout,audio)
   if (run.jumpUntil>=time && player.y===0) {
     player.vy=active('jump') ? 6.55 : 2.92
     run.jumpUntil=0
@@ -465,7 +469,9 @@ function tickExpedition(dt) {
     run.hudTick=second
     updatePowers()
     const hatchling=targetHatchling(run.hatchlings,player,layout,player.yaw,player.pitch)
-    byId('pickup-message').textContent=time<run.messageUntil ? run.message : hatchling ? (touch.matches ? 'Tap to greet' : 'Click or press C to greet') : ''
+    byId('pickup-message').textContent=time<run.messageUntil ? run.message : hatchling ? (hatchling.following
+      ? (touch.matches ? 'Tap to greet' : 'Click or press C to greet')
+      : (touch.matches ? 'Tap to invite' : 'Click or press C to invite')) : ''
   }
 }
 
@@ -545,6 +551,11 @@ function tick(time) {
       return
     }
   }
+  const movedX=player.x-oldX, movedZ=player.z-oldZ
+  const speed=Math.hypot(movedX,movedZ)/Math.max(.001,dt)
+  player.travelSpeed=(player.travelSpeed ?? 0)+(speed-(player.travelSpeed ?? 0))*Math.min(1,dt*7)
+  if(speed>.12) player.travelYaw=Math.atan2(movedX,movedZ)
+  walkHatchlings(run.hatchlings,player,run.time,dt,layout,audio)
   paint()
   frame = requestAnimationFrame(tick)
 }
@@ -709,7 +720,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=8'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=9'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()
