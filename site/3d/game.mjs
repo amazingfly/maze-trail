@@ -1,4 +1,6 @@
 import { Layout } from './layout.mjs'
+import { crystals, newExpedition } from './expedition.mjs'
+import { JungleAudio } from './sound.mjs'
 
 const byId = id => document.getElementById(id)
 const game = byId('game')
@@ -25,14 +27,29 @@ const pauseDisplay = byId('pause-display')
 const captureMouse = byId('capture-mouse')
 const dataPath = '../data/'
 const cache = new Map()
+const audio = new JungleAudio()
+const musicInput=byId('music-volume'), effectsInput=byId('effects-volume')
+const abilities=byId('abilities')
+const powerBadges=new Map()
+for (const [kind,type] of Object.entries(crystals)) {
+  if (!type.duration) continue
+  const badge=document.createElement('span')
+  badge.style.setProperty('--power', type.color)
+  badge.title=type.label
+  badge.hidden=true
+  badge.innerHTML=`${type.icon} <b></b>`
+  abilities.append(badge)
+  powerBadges.set(kind,badge)
+}
 
-let world, layout, player, projectMap
+let world, layout, player, projectMap, run, lastRoute
 let entries = [], selection = 0, loadId = 0
 let mode = 'menu'
 let footprints = false, showMap = true, hintCell
 let drag, hadLock = false, lastFrame = 0, frame
 let completed = new Set()
 let display = 'fullscreen', autoCapture = true
+let musicVolume=.28, effectsVolume=.65
 let wasFullscreen = false
 try {
   const saved = JSON.parse(localStorage.getItem(storageKey))
@@ -40,15 +57,19 @@ try {
   const settings = JSON.parse(localStorage.getItem(settingsKey))
   if (settings?.display === 'browser') display = 'browser'
   if (settings?.autoCapture === false) autoCapture = false
+  if (typeof settings?.musicVolume === 'number') musicVolume=Math.min(1,Math.max(0,settings.musicVolume))
+  if (typeof settings?.effectsVolume === 'number') effectsVolume=Math.min(1,Math.max(0,settings.effectsVolume))
 } catch {
   // Play remains available when storage is restricted.
 }
 
 launchDisplay.value = pauseDisplay.value = display
 captureMouse.checked = autoCapture
+musicInput.value=musicVolume*100
+effectsInput.value=effectsVolume*100
 
 function saveSettings() {
-  try { localStorage.setItem(settingsKey, JSON.stringify({ display, autoCapture })) } catch {}
+  try { localStorage.setItem(settingsKey, JSON.stringify({ display, autoCapture, musicVolume, effectsVolume })) } catch {}
 }
 
 function leaveFullscreen() {
@@ -97,6 +118,7 @@ async function choose(index, updateAddress = true) {
     }
     if (request !== loadId) return false
     const nextLayout = cache.get(entry.id)
+    nextLayout.resetWalls()
     world.load(nextLayout)
     layout = nextLayout
     byId('preview-name').textContent = `Page ${entry.page} · ${entry.title}`
@@ -118,6 +140,7 @@ async function choose(index, updateAddress = true) {
 
 function setMode(next) {
   mode = next
+  audio.setLevels(musicVolume,effectsVolume,mode==='play')
   game.dataset.mode = mode
   const home = mode === 'menu'
   byId('home').hidden = !home
@@ -156,13 +179,22 @@ function syncAssists() {
   byId('pause-map').checked = showMap
   byId('pause-hint').checked = footprints
   hintCell = undefined
+  lastRoute = null
   world.setHint([])
   if (mode === 'play') paint()
 }
 
 function resetPlayer() {
   const [x, z] = layout.start
-  player = { x, z, yaw: layout.startYaw, pitch: 0 }
+  player = { x, z, yaw: layout.startYaw, pitch: 0, y:0, vy:0, safe:[x,z] }
+  if (layout.destroyed.size) {
+    layout.resetWalls()
+    world.refreshWalls()
+    prepareMap()
+  }
+  run=newExpedition(layout)
+  world.setExpedition(run)
+  updatePowers()
   footprints = false
 }
 
@@ -171,6 +203,7 @@ function enter(reset) {
   if (panel.open) panel.close()
   clearInput()
   if (reset) resetPlayer()
+  audio.start()
   setMode('play')
   syncAssists()
   view.focus({ preventScroll: true })
@@ -217,7 +250,7 @@ function goHome(exitFullscreen = true) {
 }
 
 function prepareMap() {
-  const [left, top, right, bottom] = layout.data.bounds
+  const [left, top, right, bottom] = layout.boundary
   const size = mapBase.width
   const scale = (size - 30) / Math.max(right - left, bottom - top)
   const offsetX = (size - (right - left) * scale) / 2
@@ -252,6 +285,14 @@ function prepareMap() {
 function drawMap() {
   mapContext.clearRect(0, 0, minimap.width, minimap.height)
   mapContext.drawImage(mapBase, 0, 0)
+  if (active('find')) for (const item of run.loot) {
+    if (item.collected || Math.hypot(item.x-player.x,item.z-player.z)>5) continue
+    mapContext.fillStyle=crystals[item.kind].color
+    const [x,z]=projectMap(item.x,item.z)
+    mapContext.fillRect(x-3,z-3,6,6)
+    mapContext.strokeStyle='#fff'
+    mapContext.strokeRect(x-3,z-3,6,6)
+  }
   mapContext.save()
   mapContext.translate(...projectMap(player.x, player.z))
   mapContext.rotate(Math.PI - player.yaw)
@@ -274,22 +315,183 @@ function look(dx, dy) {
   player.pitch = Math.max(-1.25, Math.min(1.25, player.pitch - dy))
 }
 
+function active(kind) {
+  return (run?.powers[kind] ?? 0) > run?.time
+}
+
+function updatePowers() {
+  byId('crystal-count').textContent=run.count
+  byId('bomb-count').textContent=run.bombs
+  byId('equip-bomb').hidden=run.bombs===0
+  byId('equip-bomb').setAttribute('aria-pressed',String(run.armed))
+  byId('drop-bomb').disabled=run.bombs===0 || !run.armed || Boolean(run.charge)
+  byId('map-panel').hidden=!showMap && !active('find')
+  for(const [kind,badge] of powerBadges) {
+    badge.hidden=!active(kind)
+    if (!badge.hidden) {
+      const remaining=Math.ceil(run.powers[kind]-run.time)
+      badge.querySelector('b').textContent=remaining
+      badge.setAttribute('aria-label',`${crystals[kind].label}, ${remaining} seconds`)
+    }
+  }
+}
+
+function burst(x,y,z,color,count) {
+  for(let i=0;i<count;i++) {
+    const angle=Math.random()*Math.PI*2
+    const force=.25+Math.random()*(count>20?4:1.9)
+    run.effects.unshift({x,y,z,color,start:run.time,life:.32+Math.random()*.61,
+      dx:Math.cos(angle)*force,dz:Math.sin(angle)*force,dy:.48+Math.random()*(count>20?3:2),
+      size:(.02+Math.random()*.045)*(count>20?2.5:1)})
+  }
+  run.effects.length=Math.min(48,run.effects.length)
+}
+
+function jump() {
+  if (mode!=='play') return
+  // Buffer a quick press just before landing.
+  run.jumpUntil=run.time+.13
+}
+
+function toggleBomb() {
+  if(mode!=='play' || !run.bombs) return
+  run.armed=!run.armed
+  updatePowers()
+}
+
+function placeBomb() {
+  if (mode!=='play' || !run?.armed || !run.bombs || run.charge || player.y>.7) return
+  const target=layout.targetWall(player.x,player.z,player.yaw)
+  if(!target) {
+    run.message='Face a nearby wall'
+    run.messageUntil=run.time+1.5
+    return
+  }
+  const [x,z]=target
+  run.bombs--
+  run.charge={x,z,until:run.time+.82}
+  audio.play('fuse')
+  updatePowers()
+}
+
+function tickExpedition(dt) {
+  run.time+=dt
+  const time=run.time
+  if (run.jumpUntil>=time && player.y===0) {
+    player.vy=active('jump') ? 6.55 : 2.92
+    run.jumpUntil=0
+    audio.play('jump')
+  }
+  if(player.y>0 || player.vy>0) {
+    player.y+=player.vy*dt-5.1*dt*dt
+    player.vy-=10.2*dt
+    if(player.y<=0) {
+      player.y=player.vy=0
+      audio.play('land')
+      burst(player.x,.025,player.z,0xc6a67a,6)
+    }
+  }
+  if(run.charge && run.charge.until<=time) {
+    const {x,z}=run.charge
+    if(layout.blast(x,z)) {
+      world.refreshWalls()
+      prepareMap()
+      lastRoute=null
+    }
+    burst(x,.55,z,0xffad54,27)
+    burst(x,.31,z,0xa89772,16)
+    audio.play('blast')
+    run.charge=null
+  }
+  if (layout.canWalk(player.x,player.z)) player.safe=[player.x,player.z]
+  else if (!active('phase') && player.y<1.26) {
+    const [x,z]=layout.clearSpot(player.x,player.z,player.safe)
+    player.x=x
+    player.z=z
+  }
+  for(const item of run.loot) {
+    if(item.collected) continue
+    const dx=player.x-item.x, dz=player.z-item.z, distance=Math.hypot(dx,dz)
+    if(distance<.27 && player.y<.68) {
+      item.collected=true
+      run.count++
+      if(item.kind==='bomb') { run.bombs++; run.armed=true }
+      const type=crystals[item.kind]
+      if(type.duration) run.powers[item.kind]=time+type.duration
+      run.message=`${type.icon} ${type.label}`
+      run.messageUntil=time+1.6
+      burst(item.x,.29,item.z,parseInt(type.color.slice(1),16),16)
+      audio.play('collect')
+    } else if(active('pull') && distance < 2.5) {
+      const delta=Math.min(distance,dt*(1.15+(2.5-distance)*.68))
+      item.x+=dx/distance*delta
+      item.z+=dz/distance*delta
+    }
+  }
+  run.effects=run.effects.filter(fx=>time-fx.start<fx.life)
+  for(const [kind,key,min,span] of [['bird','birdAt',3.4,8],['roar','roarAt',13,26]]) {
+    if(time<run[key]) continue
+    const bearing=Math.random()*2*Math.PI-player.yaw
+    const pan=-Math.sin(bearing)*.92
+    const distance=kind==='roar' ? 7+Math.random()*26 : 2+Math.random()*12
+    const volume=1/(1+distance*.12)
+    audio.play(kind,{pan,volume,distance,variant:Math.floor(Math.random()*3)})
+    run[key]=time+min+Math.random()*span
+  }
+  const second=Math.floor(time*5)
+  if(run.hudTick!==second) {
+    run.hudTick=second
+    updatePowers()
+    byId('pickup-message').textContent=time<run.messageUntil ? run.message : ''
+  }
+}
+
+function recordStep(oldX,oldZ) {
+  if(player.y>0) return
+  const distance=Math.hypot(player.x-oldX,player.z-oldZ)
+  run.step+=distance
+  if(run.step < .43) return
+  run.step%=.43
+  run.foot*=-1
+  const offset=run.foot*.105
+  const x=player.x+Math.cos(player.yaw)*offset
+  const z=player.z-Math.sin(player.yaw)*offset
+  if(!layout.canWalk(x,z)) return
+  run.marks.push({x,z,yaw:player.yaw+run.foot*.085,shape:'rex'})
+  if(run.marks.length>96) run.marks.shift()
+  world.updateTracks()
+  audio.play('step',{pan:-run.foot*.15,volume:.78})
+}
+
 function paint() {
-  if (footprints) {
+  if (!run) return
+  if (active('path')) {
+    if (!lastRoute || Math.hypot(player.x-lastRoute[0],player.z-lastRoute[1])>.15) {
+      lastRoute=[player.x,player.z]
+      world.setHint(layout.pathFrom(...lastRoute),true)
+    }
+  } else if (footprints) {
     const cell = layout.cellAt(player.x, player.z)
-    if (cell !== hintCell) {
+    if (cell !== hintCell || lastRoute) {
       world.setHint(layout.hintFrom(cell))
       hintCell = cell
     }
+    lastRoute=null
+  } else if(world.blueHint) {
+    world.setHint([])
+    lastRoute=null
   }
   world.draw(player)
-  if (showMap) drawMap()
+  if (showMap || active('find')) drawMap()
 }
 
 function tick(time) {
   if (mode !== 'play') return
   const dt = Math.min(.05, (time - lastFrame) / 1000)
   lastFrame = time
+  const oldX=player.x, oldZ=player.z
+  tickExpedition(dt)
+  const canWalk=(x,z)=>layout.canWalk(x,z,player.y,active('phase'))
   const down = (...codes) => codes.some(code => keys.has(code) || [...touches.values()].includes(code))
   const forward = Number(down('KeyW', 'ArrowUp')) - Number(down('KeyS', 'ArrowDown'))
   const strafe = Number(down('KeyD')) - Number(down('KeyA'))
@@ -297,7 +499,7 @@ function tick(time) {
   const tilt = Number(down('PageDown')) - Number(down('PageUp'))
   look(turn * dt * 1.92, tilt * dt * 1.5)
   if (forward || strafe) {
-    const speed = down('ShiftLeft', 'ShiftRight') ? 2.8 : 1.68
+    const speed = (down('ShiftLeft', 'ShiftRight') ? 2.8 : 1.68)*(active('speed')?1.8:1)
     const distance = speed * dt / Math.hypot(forward, strafe)
     const sin = Math.sin(player.yaw)
     const cos = Math.cos(player.yaw)
@@ -307,13 +509,14 @@ function tick(time) {
     for (let i = 0; i < steps; i++) {
       const x = player.x + dx / steps
       const z = player.z + dz / steps
-      if (layout.canWalk(x, z)) {
+      if (canWalk(x, z)) {
         player.x = x
         player.z = z
-      } else if (dx && layout.canWalk(x, player.z)) player.x = x
-      else if (dz && layout.canWalk(player.x, z)) player.z = z
+      } else if (dx && canWalk(x, player.z)) player.x = x
+      else if (dz && canWalk(player.x, z)) player.z = z
     }
-    if (layout.reachedExit(player.x, player.z)) {
+    recordStep(oldX,oldZ)
+    if (player.y<.42 && layout.reachedExit(player.x, player.z)) {
       paint()
       openPanel(true)
       return
@@ -326,6 +529,19 @@ function tick(time) {
 byId('picker').addEventListener('submit', event => {
   event.preventDefault()
   enter(true)
+})
+for (const input of [musicInput,effectsInput]) {
+  input.addEventListener('input', () => {
+    musicVolume=musicInput.valueAsNumber/100
+    effectsVolume=effectsInput.valueAsNumber/100
+    saveSettings()
+  })
+}
+byId('jump-player').addEventListener('pointerdown', event => { event.preventDefault(); jump() })
+byId('drop-bomb').addEventListener('click', placeBomb)
+byId('equip-bomb').addEventListener('click', toggleBomb)
+window.addEventListener('click', event => {
+  if (mode==='play' && event.button===0 && document.pointerLockElement===view) placeBomb()
 })
 choice.addEventListener('change', () => choose(Number(choice.value)))
 for (const select of [launchDisplay, pauseDisplay]) {
@@ -392,6 +608,9 @@ window.addEventListener('keydown', event => {
     keys.add(event.code)
   }
   if (event.repeat) return
+  if (event.code === 'Space') { event.preventDefault(); jump() }
+  if (event.code === 'KeyB') toggleBomb()
+  if (event.code === 'KeyF') placeBomb()
   if (event.code === 'KeyH') byId('hint').click()
   if (event.code === 'KeyM') byId('map-toggle').click()
 })
@@ -426,11 +645,17 @@ document.addEventListener('mousemove', event => {
 })
 view.addEventListener('pointerdown', event => {
   if (mode !== 'play' || document.pointerLockElement === view || drag || event.button !== 0) return
+  dragMoved=false
   drag = { id: event.pointerId, x: event.clientX, y: event.clientY }
   view.setPointerCapture(event.pointerId)
 })
+view.addEventListener('click', event => {
+  if (!touch.matches && !document.pointerLockElement && event.detail && !dragMoved) placeBomb()
+})
+let dragMoved=false
 view.addEventListener('pointermove', event => {
   if (mode !== 'play' || drag?.id !== event.pointerId) return
+  dragMoved=true
   const sensitivity = event.pointerType === 'touch' ? .008 : .004
   look((event.clientX - drag.x) * sensitivity, (event.clientY - drag.y) * sensitivity)
   drag.x = event.clientX
@@ -459,7 +684,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=4'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=7'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()

@@ -71,3 +71,9 @@ python3 scripts/export_mazes.py \
 Move with WASD or the up and down arrow keys. Play opens fullscreen and captures the mouse where the browser allows it. Set **Display mode** to **In browser** to play in the page. You can drag to look, use the left and right arrow keys, or select **Mouse look** to capture the mouse. Hold Shift to jog. On touch screens, hold the movement buttons and drag the scene to look. Press M for the map, H for footprints, and Esc to open or close the pause menu. From there you can change display and mouse settings, resume, restart, or quit to the maze picker. Finished pages are saved in the browser.
 
 The game code lives in `site/3d/`. Change materials and landmark models in `world.mjs`; collision and routing use the separate `layout.mjs`. The build bundles Babylon.js and selects WebGPU when it initializes successfully. It falls back to WebGL if WebGPU fails to start or the graphics device is lost. Add `?renderer=webgl` to force WebGL when testing. Babylon.js is pinned in `package-lock.json`, and the browser loads the bundled engine from the same site.
+
+### 3D exploration
+
+Press Space to jump. Black crystals supply charges. B equips or puts one away, and F or a click while aiming places it. Touch controls are available for jumping, equipping, and placing charges. The pause menu has separate music and effects sliders. Crystal powers last for the displayed number of seconds of play.
+
+The CC0 audio files are [Cinematic percussion loop by Marwan Antonios](https://opengameart.org/content/cinematic-percussion-loop) and [Forest Ambience by TinyWorlds](https://opengameart.org/content/forest-ambience). Footsteps, pickups, charges, and spatial animal calls are synthesized locally with Web Audio.

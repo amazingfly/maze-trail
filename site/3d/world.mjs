@@ -20,6 +20,8 @@ import '@babylonjs/core/Meshes/thinInstanceMesh.js'
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js'
 import { Scene } from '@babylonjs/core/scene.js'
 import earcut from 'earcut'
+import { crystals } from './expedition.mjs'
+import { TrackGround, trackShapes, trackMesh } from './tracks.mjs'
 
 // Scene materials and landmark models live here so artwork can change independently of gameplay.
 const colors = {
@@ -95,8 +97,12 @@ function wallMeshes(scene, layout) {
   const random = () => ((seed = (Math.imul(seed,1664525)+1013904223) >>> 0) / 4294967296)
   const half = layout.wallWidth / 2
   let distance = 0
-  for (const [[ax,az],[bx,bz]] of layout.segments) {
+  for (const [index,[[ax,az],[bx,bz]]] of layout.originalSegments.entries()) {
     const length = Math.hypot(bx-ax,bz-az)
+    const from=distance
+    distance+=length
+    if (layout.destroyed.has(index)) continue
+    seed=Math.imul(index+1,2654435761) ^ layout.data.centers.length
     const nx = (az-bz)/length, nz = (bx-ax)/length
     // A continuous field gives neighbouring wall segments the same habitat.
     const growth = (x,z) => Math.sin(1.27*x+.72*z)+.77*Math.cos(1.63*z-.48*x)
@@ -120,7 +126,7 @@ function wallMeshes(scene, layout) {
       if (end) end.count++
       else ends.set(key,{x,z,count:1})
     }
-    const u = distance/1.36, v = (distance+length)/1.36
+    const u = from/1.36, v = distance/1.36
     for (const sign of [-1,1]) {
       const x=ax+sign*nx*half,z=az+sign*nz*half,xx=bx+sign*nx*half,zz=bz+sign*nz*half
       quad([[x,0,z],[xx,0,zz],[xx,top(bx,bz),zz],[x,top(ax,az),z]],
@@ -162,7 +168,6 @@ function wallMeshes(scene, layout) {
     const pts=[[ax+nx*half,top(ax,az),az+nz*half],[bx+nx*half,top(bx,bz),bz+nz*half],
       [bx-nx*half,top(bx,bz),bz-nz*half],[ax-nx*half,top(ax,az),az-nz*half]]
     quad(pts,[0,1,0],[.84,.84,.84,.84],pts.map(([x,,z])=>[x,z]))
-    distance+=length
   }
   for(const {x,z,count} of ends.values()) {
     if(count===2) continue
@@ -236,6 +241,7 @@ function floorMesh(scene, { polygons }) {
   material.diffuseTexture = texture(scene,'trail')
   material.backFaceCulling = false
   mesh.material = material
+  return mesh
 }
 
 function gateway(scene, [, [x, z], [nx, nz]], tint, isExit) {
@@ -311,6 +317,7 @@ function scenery(scene, bounds) {
   if (crowns) crowns.material.backFaceCulling = false
   addBatch(scene, 'trunks', CreateCylinder, { diameter: 2, height: 1, tessellation: 8 }, trunks, 0x8e6a4a)
   addBatch(scene, 'boulders', CreateIcoSphere, { subdivisions: 1 }, boulders)
+  return terrain
 }
 
 function dinosaur(scene, [, top, right, bottom]) {
@@ -403,11 +410,12 @@ export class World {
     this.attachEngine(canvas, engine)
     this.switchingEngine = false
     if (!this.layout) return
-    const { layout, hintPoints, lastPlayer } = this
+    const { layout, hintPoints, lastPlayer, run, blueHint } = this
     // Babylon owns the GPU resources. Rebuild them from the same layout and
     // keep the simulation state and input surface in place.
     this.load(layout)
-    this.setHint(hintPoints)
+    this.setExpedition(run)
+    this.setHint(hintPoints,blueHint)
     if (lastPlayer) this.draw(lastPlayer)
     else this.showPreview()
   }
@@ -444,9 +452,19 @@ export class World {
     this.overhead.maxZ = 170
 
     skyDome(scene)
-    scenery(scene, layout.data.bounds)
-    floorMesh(scene, layout.data)
-    wallMeshes(scene, layout)
+    const terrain=scenery(scene, layout.data.bounds)
+    const floor=floorMesh(scene, layout.data)
+    this.trackGround=new TrackGround(scene,layout.boundary,[terrain,floor])
+    this.wallVisuals=[]
+    this.wallMaterials=[]
+    this.refreshWalls()
+    this.cliffs()
+    this.run=null
+    this.crystalVisuals=[]
+    this.trackVisuals=new Map()
+    this.particleVisuals=[]
+    this.bombVisual=null
+    this.heldBomb=null
     dinosaur(scene, layout.data.bounds)
     gateway(scene, layout.data.openings[0], colors.entry, false)
     gateway(scene, layout.data.openings[1], colors.exit, true)
@@ -460,6 +478,11 @@ export class World {
     this.hint.doNotSyncBoundingInfo = true
     this.hint.thinInstanceSetBuffer('matrix', this.hintTransforms, 16, false)
     this.hint.setEnabled(false)
+    this.pathMesh=null
+    this.pathMaterial=surface(scene,'blue route',0x2445d9,1)
+    this.pathMaterial.disableLighting=true
+    this.pathMaterial.backFaceCulling=false
+    this.trackMaterial=null
     this.resize()
 
     // The menu is static, so redraw once the asynchronously loaded shaders are ready.
@@ -495,9 +518,17 @@ export class World {
     this.overhead.setTarget(this.target.set(x, 0, z))
   }
 
-  setHint(points) {
+  setHint(points, blue = false) {
     this.hintPoints = points
+    this.blueHint=blue
     if (this.switchingEngine) return
+    this.pathMesh?.dispose()
+    this.pathMesh=null
+    if (blue) {
+      this.hint.setEnabled(false)
+      this.drawRoute(points)
+      return
+    }
     const prints = []
     for (let i = 1; i < points.length && prints.length < hintCapacity; i++) {
       const [x, z] = points[i - 1]
@@ -522,6 +553,185 @@ export class World {
     this.hint.thinInstanceBufferUpdated('matrix')
   }
 
+  drawRoute(points) {
+    if (points.length<2) return
+    const positions=[], indices=[], normals=[], colors=[]
+    let distance=0
+    for (let i=1;i<points.length;i++) {
+      const [x,z]=points[i-1], [tx,tz]=points[i]
+      const dx=tx-x,dz=tz-z,length=Math.hypot(dx,dz)
+      if(length<.001) continue
+      const nx=-dz/length*.046,nz=dx/length*.046
+      const steps=Math.ceil(length/.11)
+      const base=positions.length/3
+      for(let j=0;j<=steps;j++){
+        const t=j/steps, xx=x+dx*t, zz=z+dz*t
+        const ground=this.layout.cellAt(xx,zz)===undefined ? -.045 : 0
+        positions.push(xx+nx,ground+.014,zz+nz,xx-nx,ground+.014,zz-nz)
+        normals.push(0,1,0,0,1,0)
+        const light=.66+.24*Math.sin((distance+length*t)*18)
+        colors.push(light,light,1,1, light,light,1,1)
+        const a=base+j*2
+        if(j) indices.push(a-2,a,a-1,a-1,a,a+1)
+      }
+      distance+=length
+    }
+    this.pathMesh=new Mesh('shimmering blue route',this.scene)
+    const data=new VertexData()
+    Object.assign(data,{positions,indices,normals,colors})
+    data.applyToMesh(this.pathMesh)
+    this.pathMesh.material=this.pathMaterial
+    this.pathMesh.isPickable=false
+  }
+
+  refreshWalls() {
+    if (this.switchingEngine) return
+    for (const mesh of this.wallVisuals) mesh.dispose()
+    for (const material of this.wallMaterials ?? []) material.dispose(false,true)
+    const meshCount=this.scene.meshes.length, materialCount=this.scene.materials.length
+    wallMeshes(this.scene,this.layout)
+    this.wallVisuals=this.scene.meshes.slice(meshCount)
+    this.wallMaterials=this.scene.materials.slice(materialCount)
+  }
+
+  cliffs() {
+    const [left,top,right,bottom]=this.layout.boundary
+    const items=[]
+    for (const z of [top,bottom]) for(let x=left;x<=right+1;x+=1.15) {
+      items.push({at:[x,1.65,z+(z===top?-.43:.43)],scale:[1.15,2.5+.31*Math.sin(x*2.9),.83],yaw:x*.67,tint:0x756950})
+    }
+    for (const x of [left,right]) for(let z=top;z<=bottom+1;z+=1.15) {
+      items.push({at:[x+(x===left?-.43:.43),1.67,z],scale:[.84,2.55+.45*Math.sin(z*2.1),1.18],yaw:z*.41,tint:0x686250})
+    }
+    const rock=addBatch(this.scene,'indestructible cliff enclosure',CreateIcoSphere,{subdivisions:1},items)
+    rock.material.diffuseTexture=texture(this.scene,'fracture')
+  }
+
+  setExpedition(run) {
+    this.run=run
+    if (this.switchingEngine || !this.scene) return
+    for (const mesh of this.crystalVisuals) mesh.dispose(false,true)
+    for (const mesh of this.trackVisuals.values()) mesh.dispose()
+    this.trackMaterial?.dispose()
+    for (const mesh of this.particleVisuals) mesh.dispose(false,true)
+    this.bombVisual?.dispose(false,true)
+    this.heldBomb?.dispose(false,true)
+    this.bombVisual=this.heldBomb=null
+    this.crystalVisuals=[]
+    this.trackVisuals.clear()
+    this.particleVisuals=[]
+    this.trackGround.update(run?.marks ?? [])
+    if (!run) return
+    for(const item of run.loot) {
+      const type=crystals[item.kind]
+      const hex=parseInt(type.color.slice(1),16)
+      const mesh=CreatePolyhedron(type.label,{type:type.sides===3?0:type.sides===5?3:1,size:.114},this.scene)
+      mesh.scaling.set(type.sides===8?.9:1,1.3+(type.sides-3)*.065,type.sides===4?.68:1)
+      mesh.material=surface(this.scene,type.label,hex,item.kind==='bomb'?.1:.38)
+      mesh.material.specularColor=color3(0xffffff)
+      mesh.material.specularPower=24
+      const sparkle=CreatePolyhedron('glint',{type:1,size:.032},this.scene)
+      sparkle.parent=mesh
+      sparkle.position.set(.07,.08,.07)
+      sparkle.material=surface(this.scene,'glint',0xfff9e5,1)
+      this.crystalVisuals.push(mesh)
+    }
+    this.trackMaterial=surface(this.scene,'compressed earth',0xa9885b,.13)
+    this.trackMaterial.backFaceCulling=false
+    this.bombVisual=this.makeBomb('placed charge')
+    this.heldBomb=new TransformNode('held charge and claw',this.scene)
+    this.makeBomb('charge in hand').parent=this.heldBomb
+    for (let finger=0;finger<3;finger++) {
+      const claw=CreateIcoSphere('dinosaur finger',{subdivisions:1,radius:.095},this.scene)
+      claw.parent=this.heldBomb
+      claw.position.set(-.09+finger*.055,-.093,.064)
+      claw.scaling.set(.36,.55,1.15)
+      claw.rotation.x=.45
+      claw.material=surface(this.scene,'dinosaur claw',0x7a903b)
+    }
+    for(let i=0;i<48;i++) {
+      const mesh=CreateIcoSphere('effect particle',{subdivisions:1,radius:1},this.scene)
+      mesh.material=surface(this.scene,'particle tint',0xffad58,.65)
+      mesh.setEnabled(false)
+      this.particleVisuals.push(mesh)
+    }
+    this.updateTracks()
+  }
+
+  makeBomb(name) {
+    const root=new TransformNode(name,this.scene)
+    const body=CreateIcoSphere('charge body',{subdivisions:2,radius:.11},this.scene)
+    body.parent=root
+    body.material=surface(this.scene,'obsidian charge',0x302633,.3)
+    body.material.specularColor=color3(0xccc6ed)
+    const fuse=CreatePolyhedron('glowing fuse',{type:1,size:.04},this.scene)
+    fuse.parent=root
+    fuse.position.y=.11
+    fuse.material=surface(this.scene,'fuse',0xff944c,1)
+    return root
+  }
+
+  updateTracks() {
+    if (this.switchingEngine || !this.run) return
+    const marks=this.run.marks
+    this.trackGround.update(marks)
+    for(const [mark,mesh] of this.trackVisuals) if(!marks.includes(mark)) {
+      mesh.dispose()
+      this.trackVisuals.delete(mark)
+    }
+    for(const mark of marks) {
+      if(this.trackVisuals.has(mark)) continue
+      const mesh=trackMesh('three-toed track',{outline:trackShapes[mark.shape]},this.scene)
+      mesh.material=this.trackMaterial
+      mesh.position.set(mark.x,this.layout.cellAt(mark.x,mark.z)===undefined?-.045:0,mark.z)
+      mesh.rotation.y=mark.yaw
+      mesh.isPickable=false
+      this.trackVisuals.set(mark,mesh)
+    }
+  }
+
+  animateExpedition(player) {
+    const run=this.run
+    if(!run) return
+    const time=run.time
+    for (const item of run.loot) {
+      const mesh=this.crystalVisuals[item.id]
+      mesh.setEnabled(!item.collected)
+      if (item.collected) continue
+      mesh.position.set(item.x,.27+.055*Math.sin(time*3+item.id),item.z)
+      mesh.rotation.set(.15,time*(.72+item.id%3*.11)+item.id,.12)
+      const glint=mesh.getChildMeshes()[0]
+      glint.scaling.setAll(.2+.8*Math.pow(Math.max(0,Math.sin(time*3+item.id)),5))
+    }
+    if (this.pathMesh) this.pathMaterial.emissiveColor=color3(0x294cff).scale(.69+.28*Math.sin(time*5))
+    this.bombVisual.setEnabled(Boolean(run.charge))
+    if(run.charge) {
+      const {x,z,until}=run.charge
+      this.bombVisual.position.set(x,.12,z)
+      this.bombVisual.scaling.setAll(1+.10*Math.sin((until-time)*38))
+    }
+    this.heldBomb.setEnabled(run.bombs>0 && run.armed)
+    if(run.bombs>0 && run.armed) {
+      const forward=this.camera.getDirection(new Vector3(0,0,-1))
+      const right=this.camera.getDirection(new Vector3(1,0,0))
+      const up=this.camera.getDirection(Vector3.Up())
+      this.heldBomb.position.copyFrom(this.camera.position.add(forward.scale(.40)).add(right.scale(.19)).subtract(up.scale(.17)))
+      this.heldBomb.rotation.copyFrom(this.camera.rotation)
+      this.heldBomb.scaling.setAll(.49)
+    }
+    this.particleVisuals.forEach((mesh,i)=>{
+      const fx=run.effects[i]
+      mesh.setEnabled(Boolean(fx))
+      if (!fx) return
+      const t=time-fx.start
+      mesh.position.set(fx.x+fx.dx*t,Math.max(.03,fx.y+fx.dy*t-2.1*t*t),fx.z+fx.dz*t)
+      mesh.scaling.setAll(fx.size*Math.max(.1,1-t/fx.life))
+      mesh.rotation.set(t*7+i,t*5+i,t*4)
+      mesh.material.diffuseColor=color3(fx.color)
+      mesh.material.emissiveColor=mesh.material.diffuseColor.scale(.50+.50*(1-t/fx.life))
+    })
+  }
+
   render(camera, fogDensity) {
     this.scene.activeCamera = camera
     this.scene.fogDensity = fogDensity
@@ -542,10 +752,12 @@ export class World {
     this.lastPlayer = player
     if (this.switchingEngine) return
     const { x, z, yaw, pitch } = player
-    this.camera.position.set(x, eye, z)
+    const height=eye+(player.y ?? 0)
+    this.camera.position.set(x, height, z)
     const horizontal = Math.cos(pitch)
-    this.camera.setTarget(this.target.set(x + Math.sin(yaw) * horizontal, eye + Math.sin(pitch),
+    this.camera.setTarget(this.target.set(x + Math.sin(yaw) * horizontal, height + Math.sin(pitch),
       z + Math.cos(yaw) * horizontal))
+    this.animateExpedition(player)
     this.render(this.camera, .028)
   }
 }

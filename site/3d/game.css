@@ -176,3 +176,29 @@ dialog p { line-height: 1.45; }
 @media (pointer: coarse) {
   .mouse-setting { display: none; }
 }
+
+#expedition-status {
+  position:absolute; z-index:1; inset: auto 10px 65px; display:grid; justify-items:center;
+  gap:6px; pointer-events:none; color:var(--cream);
+}
+[data-mode="menu"] #expedition-status, [data-mode="paused"] #expedition-status,
+[data-mode="complete"] #expedition-status { display:none; }
+.loot-badges, #abilities { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
+.loot-badges span, #pickup-message:not(:empty) {
+  background:#10261bea; border:1px solid var(--line); border-radius:8px; padding:.24rem .52rem;
+  font-size:.85rem; font-variant-numeric:tabular-nums;
+}
+#abilities span { border-color:var(--power); color:var(--power); }
+.crystal-count { color:#cfadff; }
+.bomb-count { color:#ffd68a; }
+.action-pad { display:none; }
+.pause-settings input[type="range"] { width:100%; accent-color:var(--lime); }
+@media (pointer:coarse), (max-width:720px) {
+  .action-pad { display:flex; gap:6px; position:absolute; right:.2rem; bottom:0; }
+  .action-pad button { pointer-events:auto; touch-action:none; padding:.52rem .67rem; }
+  #expedition-status { inset:auto 10px calc(7.6rem + env(safe-area-inset-bottom)) 10px; }
+}
+@media (max-width:430px) {
+  .action-pad { display:grid; grid-template-columns:auto auto; justify-items:end; }
+  #jump-player { grid-column:1 / -1; grid-row:1; }
+}
