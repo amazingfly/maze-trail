@@ -121,12 +121,83 @@ button[aria-pressed="true"] { background: var(--lime); color: var(--ink); }
 .controls p { display: inline-block; padding: .55rem .75rem; border-radius: 8px; background: #112e27eb; margin: 0; font-size: .86rem; }
 .controls p span { margin: 0 .4rem; }
 kbd { display: inline-block; min-width: 1.25rem; padding: .05rem .18rem; margin-inline: .05rem; border: 1px solid var(--line); border-radius: 4px; }
-.pad, .controls .touch-controls { display: none; }
-.pad { margin-top: .65rem; grid-template-columns: repeat(3, 52px); gap: .32rem; width: max-content; }
-.pad button { touch-action: none; pointer-events: auto; padding: .5rem; height: 48px; font-size: 1.35rem; user-select: none; }
-.pad button:active { background: #458465; }
-.pad .forward { grid-area: 1 / 2; }
-.pad button:not(.forward) { grid-row: 2; }
+.touch-pad { display: none; }
+[data-touch="true"] #mouse-look, [data-touch="true"] .mouse-setting,
+[data-touch="true"] .desktop-controls { display: none; }
+
+[data-touch="true"] .touch-pad {
+  display: grid;
+  justify-items: start;
+  gap: .6rem;
+  padding-left: env(safe-area-inset-left);
+}
+#joystick, .action-pad button {
+  touch-action: none;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  border: 1px solid #ffffffad;
+  background: #e3e7eb55;
+  color: white;
+  text-shadow: 0 1px 3px #101918;
+}
+#joystick {
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  width: clamp(88px, 25vmin, 120px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+#joystick span {
+  width: 36%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #f2f5f7b0;
+  box-shadow: 0 1px 5px #071d1755;
+  pointer-events: none;
+}
+.action-pad { display: flex; gap: .45rem; }
+.action-pad button {
+  width: clamp(59px, 18vmin, 75px);
+  height: clamp(49px, 14vmin, 62px);
+  border-radius: 999px;
+  padding: 0;
+}
+.action-pad button:active { background: #edf0f3b0; }
+.action-pad button:disabled { opacity: .48; }
+
+[data-display="vr"]:not([data-mode="menu"]) #view::after {
+  position: absolute;
+  content: "";
+  inset: 0 auto 0 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: #142521;
+  pointer-events: none;
+}
+[data-touch="true"]:not([data-display="vr"]) .reticle { display: none; }
+[data-display="vr"] .reticle {
+  inset: 0;
+  width: auto;
+  height: auto;
+  transform: none;
+  border: 0;
+  background: transparent;
+}
+[data-display="vr"] .reticle::before, [data-display="vr"] .reticle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  background: var(--cream);
+  border: 1px solid #122c27;
+  border-radius: 50%;
+}
+[data-display="vr"] .reticle::before { left: 25%; }
+[data-display="vr"] .reticle::after { left: 75%; }
 
 dialog {
   max-width: min(440px, calc(100% - 2rem)); color: var(--cream); padding: 1.55rem;
@@ -137,14 +208,6 @@ dialog h2 { font-size: 3.25rem; line-height: .95; }
 dialog p { line-height: 1.45; }
 .panel-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 
-@media (pointer: coarse) {
-  #mouse-look { display: none; }
-  .pad { display: grid; }
-  .controls { text-align: left; }
-  .controls .desktop-controls { display: none; }
-  .controls .touch-controls { display: inline-block; }
-  .reticle { display: none; }
-}
 @media (max-width: 630px) {
   .top { padding: .8rem; }
   #mouse-look { display: none; }
@@ -161,11 +224,10 @@ dialog p { line-height: 1.45; }
 @media (pointer: coarse) and (max-height: 500px) {
   .home { min-height: 0; padding-top: 4.75rem; }
   h1 { font-size: 3.6rem; }
-  .controls .touch-controls { display: none; }
-  .pad button { height: 42px; }
 }
 
 #game:fullscreen { width: 100%; height: 100%; }
+[data-mode="play"] { height: 100dvh; }
 .pause-settings {
   display: grid; gap: .6rem; margin: 0 0 1rem; padding: .65rem .85rem .9rem;
   border: 1px solid var(--line); border-radius: 9px;
@@ -174,9 +236,6 @@ dialog p { line-height: 1.45; }
 .setting-check { display: flex; align-items: center; gap: .5rem; min-height: 1.6rem; cursor: pointer; }
 .setting-check input { accent-color: var(--lime); width: 1rem; height: 1rem; margin: 0; }
 .controls #look-controls { margin: 0; }
-@media (pointer: coarse) {
-  .mouse-setting { display: none; }
-}
 
 #expedition-status {
   position:absolute; z-index:1; inset: auto 10px 65px; display:grid; justify-items:center;
@@ -192,14 +251,10 @@ dialog p { line-height: 1.45; }
 #abilities span { border-color:var(--power); color:var(--power); }
 .crystal-count { color:#cfadff; }
 .bomb-count { color:#ffd68a; }
-.action-pad { display:none; }
 .pause-settings input[type="range"] { width:100%; accent-color:var(--lime); }
-@media (pointer:coarse), (max-width:720px) {
-  .action-pad { display:flex; gap:6px; position:absolute; right:.2rem; bottom:0; }
-  .action-pad button { pointer-events:auto; touch-action:none; padding:.52rem .67rem; }
-  #expedition-status { inset:auto 10px calc(10rem + env(safe-area-inset-bottom)) 10px; }
+[data-touch="true"] #expedition-status {
+  inset: auto max(.75rem, env(safe-area-inset-right)) max(.75rem, env(safe-area-inset-bottom)) auto;
+  width: calc(100% - 11.5rem);
+  justify-items: end;
 }
-@media (max-width:430px) {
-  .action-pad { display:grid; grid-template-columns:auto auto; justify-items:end; }
-  #jump-player { grid-column:1 / -1; grid-row:1; }
-}
+[data-touch="true"] .loot-badges { justify-content: flex-end; }

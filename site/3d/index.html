@@ -8,7 +8,7 @@
   <title>Dinosaur Adventures 3D · Maze Trail</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./game.css?v=11">
+  <link rel="stylesheet" href="./game.css?v=14">
 </head>
 <body>
   <main id="game" data-mode="menu">
@@ -34,6 +34,7 @@
         <select id="maze-choice" disabled><option>Loading mazes…</option></select>
         <label for="launch-display">Display mode</label>
         <select id="launch-display">
+          <option value="vr">VR style (split screen)</option>
           <option value="fullscreen">Fullscreen</option>
           <option value="browser">In browser</option>
         </select>
@@ -66,17 +67,12 @@
     <div class="reticle" aria-hidden="true" hidden></div>
     <div class="controls" id="controls" hidden>
       <p class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move <span>·</span> <span id="look-controls">Drag or ← → to look</span> <span>·</span> <kbd>⇧</kbd> Jog <span>·</span> <kbd>Space</kbd> Jump <span>·</span> <kbd>B</kbd> Equip <span>·</span> <kbd>F</kbd> Place charge <span>·</span> <kbd>Esc</kbd> Pause</p>
-      <p class="touch-controls">Hold to walk · Drag to look</p>
-      <div class="action-pad">
-        <button id="equip-bomb" aria-label="Equip or put away bomb" aria-pressed="true" hidden>✹</button>
-        <button id="drop-bomb" aria-label="Place bomb" disabled>Place</button>
-        <button id="jump-player" aria-label="Jump">Jump</button>
-      </div>
-      <div class="pad" aria-label="Movement">
-        <button class="forward" type="button" data-key="KeyW" aria-label="Walk forward">↑</button>
-        <button type="button" data-key="KeyA" aria-label="Step left">←</button>
-        <button type="button" data-key="KeyS" aria-label="Walk backward">↓</button>
-        <button type="button" data-key="KeyD" aria-label="Step right">→</button>
+      <div class="touch-pad">
+        <div id="joystick" aria-hidden="true"><span></span></div>
+        <div class="action-pad">
+          <button id="jump-player" type="button">Jump</button>
+          <button id="drop-bomb" type="button" aria-label="Place bomb" disabled>Bomb</button>
+        </div>
       </div>
     </div>
 
@@ -92,6 +88,7 @@
         <input id="effects-volume" type="range" min="0" max="100">
         <label for="pause-display">Display mode</label>
         <select id="pause-display">
+          <option value="vr">VR style (split screen)</option>
           <option value="fullscreen">Fullscreen</option>
           <option value="browser">In browser</option>
         </select>
@@ -106,6 +103,6 @@
       </div>
     </dialog>
   </main>
-  <script type="module" src="./game.mjs?v=13"></script>
+  <script type="module" src="./game.mjs?v=14"></script>
 </body>
 </html>

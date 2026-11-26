@@ -2,6 +2,7 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder.js'
 import { Hatchling } from './hatchling.mjs'
 import { voiceEnvelope, trailheadDinosaurs } from './hatchling-play.mjs'
+import { Viewport } from '@babylonjs/core/Maths/math.viewport.js'
 import { Camera } from '@babylonjs/core/Cameras/camera.js'
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera.js'
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight.js'
@@ -465,6 +466,13 @@ export class World {
     this.camera = new TargetCamera('first person', Vector3.Zero(), scene)
     this.camera.minZ = .025
     this.camera.maxZ = 130
+    this.eyes = ['left', 'right'].map((side, index) => {
+      const camera = new TargetCamera(side + ' eye', Vector3.Zero(), scene)
+      camera.minZ = this.camera.minZ
+      camera.maxZ = this.camera.maxZ
+      camera.viewport = new Viewport(index * .5, 0, .5, 1)
+      return camera
+    })
     this.overhead = new TargetCamera('overhead', Vector3.Zero(), scene)
     this.overhead.mode = Camera.ORTHOGRAPHIC_CAMERA
     this.overhead.minZ = .1
@@ -773,7 +781,9 @@ export class World {
   }
 
   render(camera, fogDensity) {
-    this.scene.activeCamera = camera
+    const cameras = camera === this.camera && this.stereo ? this.eyes : null
+    if (this.scene.activeCameras !== cameras) this.scene.activeCameras = cameras
+    if (!cameras) this.scene.activeCamera = camera
     this.scene.fogDensity = fogDensity
     this.engine.beginFrame()
     try {
@@ -797,6 +807,15 @@ export class World {
     const horizontal = Math.cos(pitch)
     this.camera.setTarget(this.target.set(x + Math.sin(yaw) * horizontal, height + Math.sin(pitch),
       z + Math.cos(yaw) * horizontal))
+    if (this.stereo) {
+      const rightX = -Math.cos(yaw), rightZ = Math.sin(yaw)
+      this.eyes.forEach((camera, index) => {
+        const offset = index ? .032 : -.032
+        camera.position.set(x + rightX * offset, height, z + rightZ * offset)
+        camera.fov = this.camera.fov
+        camera.rotation.copyFrom(this.camera.rotation)
+      })
+    }
     this.animateExpedition(player)
     this.render(this.camera, .028)
   }

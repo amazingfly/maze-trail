@@ -16,11 +16,17 @@ const mapBase = document.createElement('canvas')
 mapBase.width = minimap.width
 mapBase.height = minimap.height
 const touch = matchMedia('(pointer: coarse)')
+const phone = navigator.userAgentData?.mobile || /iPhone|iPod|Android.+Mobile/i.test(navigator.userAgent)
+  || (touch.matches && Math.min(screen.width, screen.height) <= 600)
+const touchControls = () => phone || touch.matches
+game.dataset.touch = String(touchControls())
+touch.addEventListener('change', () => { game.dataset.touch = String(touchControls()) })
+const joystick = byId('joystick')
+const stick = { id: null, x:0, y:0 }
 const difficulties = { preschool: 'First mazes', easy: 'Easy', challenge: 'Challenge' }
 const moveKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowRight', 'ArrowDown',
   'ArrowLeft', 'ShiftLeft', 'ShiftRight', 'KeyQ', 'KeyE', 'PageUp', 'PageDown'])
 const keys = new Set()
-const touches = new Map()
 const storageKey = 'maze-trail:dinosaur-3d:v2'
 const settingsKey = 'maze-trail:dinosaur-3d:settings'
 const launchDisplay = byId('launch-display')
@@ -49,14 +55,14 @@ let mode = 'menu'
 let footprints = false, showMap = true, hintCell
 let drag, hadLock = false, lastFrame = 0, frame
 let completed = new Set()
-let display = 'fullscreen', autoCapture = true
+let display = phone ? 'vr' : 'fullscreen', autoCapture = true
 let musicVolume=.28, effectsVolume=.65
 let wasFullscreen = false
 try {
   const saved = JSON.parse(localStorage.getItem(storageKey))
   if (Array.isArray(saved)) completed = new Set(saved)
   const settings = JSON.parse(localStorage.getItem(settingsKey))
-  if (settings?.display === 'browser') display = 'browser'
+  if (['vr', 'fullscreen', 'browser'].includes(settings?.display)) display = settings.display
   if (settings?.autoCapture === false) autoCapture = false
   if (typeof settings?.musicVolume === 'number') musicVolume=Math.min(1,Math.max(0,settings.musicVolume))
   if (typeof settings?.effectsVolume === 'number') effectsVolume=Math.min(1,Math.max(0,settings.effectsVolume))
@@ -64,7 +70,7 @@ try {
   // Play remains available when storage is restricted.
 }
 
-launchDisplay.value = pauseDisplay.value = display
+game.dataset.display = launchDisplay.value = pauseDisplay.value = display
 captureMouse.checked = autoCapture
 musicInput.value=musicVolume*100
 effectsInput.value=effectsVolume*100
@@ -80,7 +86,7 @@ function leaveFullscreen() {
 function activateDisplay() {
   // Fullscreen consumes the click's transient activation, so ask for pointer lock first.
   if (autoCapture) lockPointer()
-  if (display === 'fullscreen' && !document.fullscreenElement && document.fullscreenEnabled) {
+  if (display !== 'browser' && !document.fullscreenElement && document.fullscreenEnabled) {
     game.requestFullscreen().catch(() => {})
   }
 }
@@ -155,12 +161,12 @@ function setMode(next) {
 
 function clearInput() {
   keys.clear()
-  touches.clear()
+  resetStick()
   drag = undefined
 }
 
 function lockPointer() {
-  if (touch.matches || !view.requestPointerLock || document.pointerLockElement === view) return
+  if (touchControls() || !view.requestPointerLock || document.pointerLockElement === view) return
   try {
     view.requestPointerLock()?.catch(() => {})
   } catch {
@@ -333,9 +339,7 @@ function active(kind) {
 function updatePowers() {
   byId('crystal-count').textContent=run.count
   byId('bomb-count').textContent=run.bombs
-  byId('equip-bomb').hidden=run.bombs===0
-  byId('equip-bomb').setAttribute('aria-pressed',String(run.armed))
-  byId('drop-bomb').disabled=run.bombs===0 || !run.armed || Boolean(run.charge)
+  byId('drop-bomb').disabled=run.bombs===0 || Boolean(run.charge)
   byId('map-panel').hidden=!showMap && !active('find')
   for(const [kind,badge] of powerBadges) {
     badge.hidden=!active(kind)
@@ -370,8 +374,8 @@ function toggleBomb() {
   updatePowers()
 }
 
-function placeBomb() {
-  if (mode!=='play' || !run?.armed || !run.bombs || run.charge || player.y>.7) return
+function placeBomb(direct = false) {
+  if (mode!=='play' || !run?.bombs || (!direct && !run.armed) || run.charge || player.y>.7) return
   const target=layout.targetWall(player.x,player.z,player.yaw)
   if(!target) {
     run.message='Face a nearby wall'
@@ -390,9 +394,11 @@ function greet(event) {
   let {yaw,pitch}=player
   if(event && document.pointerLockElement!==view) {
     const bounds=view.getBoundingClientRect()
+    const width=bounds.width/(display==='vr'?2:1)
+    const localX=event.clientX-bounds.left
     const fov=bounds.width<bounds.height?78:65
     const scale=Math.tan(fov*Math.PI/360)*2/bounds.height
-    yaw-=Math.atan((event.clientX-bounds.left-bounds.width/2)*scale)
+    yaw-=Math.atan((localX%width-width/2)*scale)
     pitch-=Math.atan((event.clientY-bounds.top-bounds.height/2)*scale)
   }
   const actor=targetHatchling(run.hatchlings,player,layout,yaw,pitch)
@@ -478,8 +484,8 @@ function tickExpedition(dt) {
     updatePowers()
     const hatchling=targetHatchling(run.hatchlings,player,layout,player.yaw,player.pitch)
     byId('pickup-message').textContent=time<run.messageUntil ? run.message : hatchling ? (hatchling.following
-      ? (touch.matches ? 'Tap to greet' : 'Click or press C to greet')
-      : (touch.matches ? 'Tap to invite' : 'Click or press C to invite')) : ''
+      ? (touchControls() ? 'Tap to greet' : 'Click or press C to greet')
+      : (touchControls() ? 'Tap to invite' : 'Click or press C to invite')) : ''
   }
 }
 
@@ -520,26 +526,27 @@ function paint() {
     world.setHint([])
     lastRoute=null
   }
+  world.stereo = display === 'vr'
   world.draw(player)
   if (showMap || active('find')) drawMap()
 }
 
 function tick(time) {
   if (mode !== 'play') return
-  const dt = Math.min(.05, (time - lastFrame) / 1000)
+  const dt = Math.max(0, Math.min(.05, (time - lastFrame) / 1000))
   lastFrame = time
   const oldX=player.x, oldZ=player.z
   tickExpedition(dt)
   const canWalk=(x,z)=>layout.canWalk(x,z,player.y,active('phase'))
-  const down = (...codes) => codes.some(code => keys.has(code) || [...touches.values()].includes(code))
-  const forward = Number(down('KeyW', 'ArrowUp')) - Number(down('KeyS', 'ArrowDown'))
-  const strafe = Number(down('KeyD')) - Number(down('KeyA'))
+  const down = (...codes) => codes.some(code => keys.has(code))
+  const forward = Number(down('KeyW', 'ArrowUp')) - Number(down('KeyS', 'ArrowDown')) - stick.y
+  const strafe = Number(down('KeyD')) - Number(down('KeyA')) + stick.x
   const turn = Number(down('ArrowRight', 'KeyE')) - Number(down('ArrowLeft', 'KeyQ'))
   const tilt = Number(down('PageDown')) - Number(down('PageUp'))
   look(turn * dt * 1.92, tilt * dt * 1.5)
   if (forward || strafe) {
     const speed = (down('ShiftLeft', 'ShiftRight') ? 2.8 : 1.68)*(active('speed')?1.8:1)
-    const distance = speed * dt / Math.hypot(forward, strafe)
+    const distance = speed * dt / Math.max(1, Math.hypot(forward, strafe))
     const sin = Math.sin(player.yaw)
     const cos = Math.cos(player.yaw)
     const dx = (sin * forward - cos * strafe) * distance
@@ -581,9 +588,15 @@ for (const input of [musicInput,effectsInput]) {
     saveSettings()
   })
 }
-byId('jump-player').addEventListener('pointerdown', event => { event.preventDefault(); jump() })
-byId('drop-bomb').addEventListener('click', placeBomb)
-byId('equip-bomb').addEventListener('click', toggleBomb)
+for (const [id, action] of [['jump-player', jump], ['drop-bomb', () => placeBomb(true)]]) {
+  const button = byId(id)
+  button.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || button.disabled) return
+    event.preventDefault()
+    action()
+  })
+  button.addEventListener('click', event => { if (event.detail === 0) action() })
+}
 window.addEventListener('click', event => {
   if (mode==='play' && event.button===0 && document.pointerLockElement===view && !greet(event)) placeBomb()
 })
@@ -591,7 +604,7 @@ choice.addEventListener('change', () => choose(Number(choice.value)))
 for (const select of [launchDisplay, pauseDisplay]) {
   select.addEventListener('change', () => {
     display = select.value
-    launchDisplay.value = pauseDisplay.value = display
+    game.dataset.display = launchDisplay.value = pauseDisplay.value = display
     saveSettings()
     if (display === 'browser') leaveFullscreen()
   })
@@ -696,7 +709,7 @@ view.addEventListener('pointerdown', event => {
 })
 view.addEventListener('click', event => {
   if (document.pointerLockElement || !event.detail || dragMoved) return
-  if (!greet(event) && !touch.matches) placeBomb()
+  if (!greet(event) && !touchControls()) placeBomb()
 })
 let dragMoved=false
 view.addEventListener('pointermove', event => {
@@ -710,16 +723,33 @@ view.addEventListener('pointermove', event => {
 for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
   view.addEventListener(type, event => { if (drag?.id === event.pointerId) drag = undefined })
 }
-for (const button of document.querySelectorAll('.pad button')) {
-  button.addEventListener('pointerdown', event => {
-    if (mode !== 'play') return
-    event.preventDefault()
-    button.setPointerCapture(event.pointerId)
-    touches.set(event.pointerId, button.dataset.key)
-  })
-  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-    button.addEventListener(type, event => touches.delete(event.pointerId))
-  }
+function resetStick() {
+  stick.id = null
+  stick.x = stick.y = 0
+  joystick.firstElementChild.style.transform = ''
+}
+
+function moveStick(event) {
+  if (stick.id !== event.pointerId) return
+  const bounds = joystick.getBoundingClientRect()
+  const radius = bounds.width * .33
+  const dx = (event.clientX - bounds.left - bounds.width / 2) / radius
+  const dy = (event.clientY - bounds.top - bounds.height / 2) / radius
+  const length = Math.hypot(dx, dy)
+  const strength = Math.min(1, Math.max(0, (length - .12) / .88))
+  stick.x = length ? dx * strength / length : 0
+  stick.y = length ? dy * strength / length : 0
+  joystick.firstElementChild.style.transform = `translate(${stick.x * radius}px, ${stick.y * radius}px)`
+}
+joystick.addEventListener('pointerdown', event => {
+  if (mode !== 'play' || stick.id !== null || event.button !== 0) return
+  stick.id = event.pointerId
+  joystick.setPointerCapture(event.pointerId)
+  moveStick(event)
+})
+joystick.addEventListener('pointermove', moveStick)
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+  joystick.addEventListener(type, event => { if (stick.id === event.pointerId) resetStick() })
 }
 
 new ResizeObserver(() => {
@@ -730,7 +760,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=13'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=14'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()
