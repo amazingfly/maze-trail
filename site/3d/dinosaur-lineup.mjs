@@ -23,6 +23,16 @@ const headings={front:0,three:-.63,side:-Math.PI/2,rear:Math.PI-.54}
 const gesture=['sneeze','wag','scratch','sit']
 let audition, started=performance.now()
 
+// A review link can hold both the gesture and the independent gait clock at the same time.
+function reviewTime() {
+  const value=new URLSearchParams(location.hash.slice(1)).get('time')
+  if(value===null || value.trim()==='') return null
+  const seconds=Number(value)
+  return Number.isFinite(seconds) && seconds>=0 ? seconds : null
+}
+let sample=reviewTime()
+window.addEventListener('hashchange',()=>{sample=reviewTime()})
+
 function material(scene,name,hex){
   const surface=new StandardMaterial(name,scene)
   surface.diffuseColor=Color3.FromHexString(hex)
@@ -177,7 +187,7 @@ try {
     sound.disabled=false
     engine.runRenderLoop(()=>{
       const now=performance.now()
-      frame(now/1000,(now-started)/1000)
+      frame(sample ?? now/1000,sample ?? (now-started)/1000)
     })
   })
 } catch(error) {

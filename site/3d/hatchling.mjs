@@ -1,5 +1,5 @@
 import { Color3 } from '@babylonjs/core/Maths/math.color.js'
-import { Vector3 } from '@babylonjs/core/Maths/math.vector.js'
+import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector.js'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js'
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture.js'
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder.js'
@@ -47,12 +47,12 @@ function scaleTexture(scene,seed) {
   const ctx=map.getContext()
   let state=seed
   const next=()=>((state=(Math.imul(state,1664525)+1013904223)>>>0)/4294967296)
-  ctx.fillStyle='#d3cebf'
+  ctx.fillStyle='#dfdbd0'
   ctx.fillRect(0,0,128,128)
   for(let y=0;y<16;y++)for(let x=0;x<16;x++) {
-    const cx=x*8+(y%2)*4+next()*2,cy=y*8+next()*2
+    const cx=x*8+(y%2)*4+(next()-.5)*3.6,cy=y*8+(next()-.5)*3.6
     const rx=2.9+next()*1.4,ry=2.6+next()*1.4
-    const tone=Math.round(219+next()*34)
+    const tone=Math.round(225+next()*25)
     const tilt=(next()-.5)*.8
     for(const ox of [-128,0,128])for(const oy of [-128,0,128]) {
       if(cx+ox < -6 || cx+ox > 134 || cy+oy < -6 || cy+oy > 134) continue
@@ -60,7 +60,7 @@ function scaleTexture(scene,seed) {
       ctx.beginPath()
       ctx.ellipse(cx+ox,cy+oy,rx,ry,tilt,0,TAU)
       ctx.fill()
-      ctx.fillStyle='#fff8df'
+      ctx.fillStyle='rgba(255,248,223,.48)'
       ctx.fillRect(cx+ox-1.2,cy+oy-1.8,1.5,.65)
     }
   }
@@ -99,35 +99,53 @@ function volume(name, scene, parent, at, size, palette, seed, profile = 1) {
   return mesh
 }
 
+const sweepSides=16
+const ringSize=sweepSides+1
+
+function smoothSweepSeam(normals) {
+  for(let start=0;start<normals.length;start+=ringSize*3) {
+    const end=start+sweepSides*3
+    const x=normals[start]+normals[end], y=normals[start+1]+normals[end+1], z=normals[start+2]+normals[end+2]
+    const length=Math.hypot(x,y,z)||1
+    normals[start]=normals[end]=x/length
+    normals[start+1]=normals[end+1]=y/length
+    normals[start+2]=normals[end+2]=z/length
+  }
+}
+
 function sweep(name,scene,parent,sections,palette,seed,material) {
   const positions=[],indices=[],colors=[],uvs=[]
-  const sides=12
+  const sides=sweepSides
+  // Carry the width axis down the curve, including through vertical tangents.
+  const dz=sections.at(-1)[2]-sections[0][2]
+  let side=new Vector3(dz<-.06?-1:1,0,0)
   sections.forEach(([x,y,z,w,h],index)=>{
     const a=sections[Math.max(0,index-1)],b=sections[Math.min(sections.length-1,index+1)]
     const tangent=new Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]).normalize()
-    const side=Vector3.Cross(Vector3.Up(),tangent)
-    if(side.lengthSquared()<.001) side.set(1,0,0)
+    side=side.subtract(tangent.scale(Vector3.Dot(side,tangent)))
+    if(side.lengthSquared()<.001) side=Vector3.Cross(Vector3.Up(),tangent)
     side.normalize()
     const up=Vector3.Cross(tangent,side).normalize()
-    for(let j=0;j<sides;j++){
+    for(let j=0;j<=sides;j++){
       const angle=j/sides*TAU, t=side.scale(Math.cos(angle)*w).add(up.scale(Math.sin(angle)*h))
       const point=[x+t.x,y+t.y,z+t.z]
       positions.push(...point)
       uvs.push(j/sides,index/(sections.length-1))
       if(palette)colors.push(...shade(point,seed,palette,Math.max(0,-Math.sin(angle))*.68))
-      if(index){
-        const prev=(index-1)*sides
-        const a=prev+j,b=prev+(j+1)%sides,c=a+sides,d=b+sides
+      if(index && j<sides){
+        const prev=(index-1)*ringSize
+        const a=prev+j,b=a+1,c=a+ringSize,d=b+ringSize
         indices.push(a,b,c,b,d,c)
       }
     }
   })
   const data=new VertexData(), normals=[]
   for(let j=1;j<sides-1;j++){
-    const end=(sections.length-1)*sides
+    const end=(sections.length-1)*ringSize
     indices.push(0,j+1,j,end,end+j,end+j+1)
   }
   VertexData.ComputeNormals(positions,indices,normals,{useRightHandedSystem:true})
+  smoothSweepSeam(normals)
   Object.assign(data,{positions,indices,normals,uvs})
   if(palette)data.colors=colors
   const mesh=new Mesh(name,scene)
@@ -142,9 +160,10 @@ function plate(name,scene,parent,at,width,height,depth,material) {
   // A rounded lozenge with an offset bevel and a softer silhouette than a flat triangle.
   const mesh=sweep(name,scene,parent,[
     [0,-.022,0,depth*.52,width*.55],
-    [-.012,height*.26,0,depth,width],
-    [-.021,height*.68,-.013,depth*.65,width*.75],
-    [-.017,height,-.027,.003,.004],
+    [0,height*.27,0,depth,width*1.18],
+    [0,height*.60,-.007,depth*.76,width*1.24],
+    [0,height*.82,-.016,depth*.43,width*.76],
+    [0,height,-.025,.003,.004],
   ],null,0,material)
   mesh.position.set(...at)
   return mesh
@@ -159,6 +178,8 @@ function node(name,scene,parent,at=[0,0,0]) {
 
 export class Hatchling {
   constructor(scene, kind, seed=1, { adult=false }={}) {
+    this.bodyMatrix=Matrix.Identity()
+    this.bodyOrientation=new Quaternion()
     this.kind=kind
     this.type=species[kind]
     this.adult=adult
@@ -177,11 +198,11 @@ export class Hatchling {
     }
     const skinMat=material('mottled hide',0xffffff)
     skinMat.diffuseTexture=scaleTexture(scene,seed)
-    skinMat.diffuseTexture.uScale=1.44
+    skinMat.diffuseTexture.uScale=2
     skinMat.diffuseTexture.vScale=1.19
     const lip=material('lip and nostrils',adult?0x422e29:0x513333)
     const mouth=material('mouth lining',adult?0x301722:0x421c36)
-    const tongue=material('tongue',adult?0xa85a63:0xe48491,1)
+    const tongue=material('tongue',adult?0x9a5963:0xcc7788)
     const bone=material('horn, beak and claws',0xf9dbab)
     const almond=material('warm sclera',0xfff2d6,1)
     const eyeTint=material('iris',adult?0xc39956:iris,1)
@@ -245,7 +266,34 @@ export class Hatchling {
     hide('lower jaw',this.jaw,[0,-.026,snout*.84],[headWidth*.80,.034,snout*.82],.90)
     solid('inner mouth',this.jaw,[0,-.008,snout*.88],[headWidth*.72,.014,snout*.74],mouth)
     solid('soft tongue',this.jaw,[0,.000,snout*1.04],[headWidth*(adult?.42:.49),.008,snout*(adult?.36:.46)],tongue)
-    if (!rex) solid('curved upper beak',this.head,[0,-.033,snout*1.28],[headWidth*.54,.028,.035],bone)
+    // A U-shaped lining connects the jaws at the throat. Its front edge stays open.
+    this.throat=new Mesh('flexible mouth lining',scene)
+    this.throat.parent=this.head
+    this.throat.position.copyFrom(this.jaw.position)
+    this.throat.material=mouth
+    this.throat.isPickable=false
+    this.throatRim=[[-.65,1.06],[-.57,.97],[-.33,.88],[0,.86],[.33,.88],[.57,.97],[.65,1.06]]
+      .map(([x,z])=>[x*headWidth,z*snout])
+    const lining=new VertexData()
+    lining.positions=this.throatRim.flatMap(([x,z])=>[x,.012,z,x,-.012,z])
+    lining.indices=[]
+    for(let i=0;i<this.throatRim.length-1;i++){
+      const j=i*2
+      lining.indices.push(j,j+1,j+2,j+2,j+1,j+3)
+    }
+    lining.normals=[]
+    VertexData.ComputeNormals(lining.positions,lining.indices,lining.normals,{useRightHandedSystem:true})
+    lining.applyToMesh(this.throat,true)
+    this.lining=lining
+    if(trike || stego) {
+      const keratin=material('amber beak',adult?0x9e7852:0xd5aa72)
+      sweep('hooked upper beak',scene,this.head,[
+        [0,-.011,snout*.99,headWidth*.62,.030],
+        [0,-.014,snout*1.23,headWidth*.57,.031],
+        [0,-.024,snout*1.42,headWidth*.37,.024],
+        [0,-.042,snout*1.47,.006,.010],
+      ],null,seed,keratin)
+    }
 
     this.eyes=[]
     for (const side of [-1,1]) {
@@ -355,15 +403,15 @@ export class Hatchling {
       sweep('rounded tail spike',scene,spike,[
         [side*.023,.012,0,.013,.013],[side*.059,.039,-.014,.009,.009],
         [side*.086,.054,-.023,.001,.001]],null,seed,bone)
-      this.spikes.push(spike)
+      this.spikes.push({joint:spike,restZ:z,back:-z/tailLength})
     }
 
     this.legs=[]
     for(const side of [-1,1])for(const front of [false,true]){
       const arm=rex&&front
       const jointHeight=arm?.397:rex?.287:long?.318:.237
-      const femur=arm?.060:rex?.130:long?.147:.105
-      const shin=arm?.050:rex?.123:long?.137:.101
+      const femur=arm?.060:rex?.155:long?.168:.126
+      const shin=arm?.050:rex?.149:long?.160:.123
       const shoulder=node(arm?'shoulder':'upper leg',scene,this.body,[side*(arm?.094:.097),jointHeight,front?.121:-.103])
       const knee=node(arm?'wrist':'knee',scene,shoulder,[side*(arm?.011:0),-femur,arm?.020:.007])
       const ankle=node(arm?'hand':'ankle',scene,knee,[0,-shin,arm?.021:.010])
@@ -375,7 +423,10 @@ export class Hatchling {
         const x=(j-(arm?.5:1))*width*.53
         solid('round toe',ankle,[x,-.009,arm?.050:.061],[width*.30,arm?.013:.017,.019],bone)
       }
-      this.legs.push({shoulder,knee,ankle,side,front,arm,femur,shin})
+      this.legs.push({shoulder,knee,ankle,side,front,arm,
+        upper:Math.hypot(femur,knee.position.z),lower:Math.hypot(shin,ankle.position.z),
+        upperRest:Math.atan2(knee.position.z,femur),lowerRest:Math.atan2(ankle.position.z,shin),
+      })
     }
   }
 
@@ -391,14 +442,14 @@ export class Hatchling {
     const scratch=action==='scratch'?act:0
     const wag=action==='wag'?act:0
     const rex=this.kind==='rex'
-    this.body.position.y=.005*breath+walk*(adult?.61:1)*(.013+.018*Math.sin(gait*2+.5))-.072*sit+.027*shake+.018*roar
+    this.body.position.y=.005*breath+walk*(adult?.61:1)*(.004+.011*Math.sin(gait*2+.5))-.072*sit+.027*shake+.018*roar
     this.body.scaling.set(1+.010*breath,1+.011*breath+.018*roar,1)
     this.body.rotation.z=-bank*.075*walk+walk*(adult?.031:.047)*Math.sin(gait)+.018*shake*Math.sin(progress*36)
       +wag*.043*Math.sin(progress*TAU*2.45+.5)
     this.body.rotation.x=sit*-.14+walk*.038*Math.sin(gait*2)-.07*shake
     this.body.rotation.y=wag*.065*Math.sin(progress*TAU*2.45+.8)
     this.neck.rotation.x=.026*breath+walk*.071*Math.sin(gait+.7)-.20*sit+.31*scratch-.17*roar
-    this.head.position.set(0,this.headRest[1]-.028*scratch,this.headRest[2]-.035*scratch)
+    this.head.position.set(0,this.headRest[1]-.028*scratch,this.headRest[2]-.035*scratch+.022*voice+.015*roar)
     const sneezeSnap=Math.exp(-((progress-.47)**2)/.003)
     const sneezeRecoil=Math.exp(-((progress-.58)**2)/.008)
     this.head.rotation.x=.030*Math.sin(t*2.2+.5)+walk*.105*Math.sin(gait+.33)
@@ -406,6 +457,17 @@ export class Hatchling {
     this.head.rotation.y=interest*.43+bank*.23*walk+.077*Math.sin(t*1.9)+walk*.041*Math.sin(gait)+shake*.26*Math.sin(progress*32)
     this.head.rotation.z=(adult?.027:.060)*Math.sin(t*1.1)+shake*.15*Math.sin(progress*32)
     this.jaw.rotation.x=.012+voice*(adult?.86:.67)+roar*.22+shake*.34*Math.exp(-((progress-.49)**2)/.013)
+    if(this.jaw.rotation.x!==this.liningAngle){
+      this.liningAngle=this.jaw.rotation.x
+      const jawSin=Math.sin(this.jaw.rotation.x),jawCos=Math.cos(this.jaw.rotation.x)
+      for(const [i,[,z]] of this.throatRim.entries()){
+        this.lining.positions[i*6+4]=-.012*jawCos-z*jawSin
+        this.lining.positions[i*6+5]=-.012*jawSin+z*jawCos
+      }
+      VertexData.ComputeNormals(this.lining.positions,this.lining.indices,this.lining.normals,{useRightHandedSystem:true})
+      this.throat.updateVerticesData('position',this.lining.positions,true)
+      this.throat.updateVerticesData('normal',this.lining.normals)
+    }
     const blinkTick=(t+.27)%(3.37+this.type.gait*.7)
     const blink=1-.91*Math.sin(Math.PI*clamp(blinkTick/.17))
     for(const eye of this.eyes) eye.scaling.y=blink*(adult?.74:1)*(1-.35*shake-.17*roar)
@@ -419,17 +481,23 @@ export class Hatchling {
       this.tailStream[i+2]=this.tailRest[i+2]+Math.abs(tailWave)*.34*back**2
     }
     VertexData.ComputeNormals(this.tailStream,this.tailIndices,this.tailNormals,{useRightHandedSystem:true})
+    smoothSweepSeam(this.tailNormals)
     this.tailMesh.updateVerticesData('position',this.tailStream)
     this.tailMesh.updateVerticesData('normal',this.tailNormals)
-    for (const spike of this.spikes) {
-      const back=-spike.position.z/this.tailLength
-      spike.position.x=tailWave*back**1.5
-      spike.position.y=.031+rearLift*back**1.3
-      spike.rotation.y=-tailWave*back*2.7
+    for (const {joint,restZ,back} of this.spikes) {
+      // Match the displaced ring center and its local tangent, including tail shortening.
+      const tangentZ=this.tailLength-.68*Math.abs(tailWave)*back
+      joint.position.set(tailWave*back**1.5,.031+rearLift*back**1.3,
+        restZ+Math.abs(tailWave)*.34*back**2)
+      joint.rotation.y=-Math.atan2(1.5*tailWave*Math.sqrt(back),tangentZ)
+      joint.rotation.x=Math.atan2(1.3*rearLift*back**.3,tangentZ)
     }
 
     const stance=adult?.71:.62
-    for(const {shoulder,knee,ankle,side,front,arm,femur,shin} of this.legs){
+    Quaternion.FromEulerAnglesToRef(this.body.rotation.x,this.body.rotation.y,this.body.rotation.z,this.bodyOrientation)
+    Matrix.ComposeToRef(this.body.scaling,this.bodyOrientation,this.body.position,this.bodyMatrix)
+    const m=this.bodyMatrix.m
+    for(const {shoulder,knee,ankle,side,front,arm,upper,lower,upperRest,lowerRest} of this.legs){
       const cycle=gait/TAU+(side===1?.5:0)+(front&&!rex?.42:0)
       const phase=cycle-Math.floor(cycle)
       const stride=this.kind==='longneck'?.153:rex?.204:.145
@@ -448,15 +516,15 @@ export class Hatchling {
       }
       const targetZ=forward+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
       const hip=shoulder.position
-      const drop=hip.y+this.body.position.y-Math.sin(this.body.rotation.x)*hip.z
-        +Math.sin(this.body.rotation.z)*hip.x-.029-lift
-      const reachLength=Math.min(femur+shin-.001,Math.max(.03,Math.hypot(drop,targetZ)))
+      // Solve in the limb plane for the requested sole height in root space.
+      const ankleHeight=.033+lift
+      const drop=hip.y+(m[13]+m[1]*hip.x+m[9]*(hip.z+targetZ)-ankleHeight)/m[5]
+      const reachLength=Math.min(upper+lower-.0001,Math.max(Math.abs(upper-lower)+.0001,Math.hypot(drop,targetZ)))
       const bend=front&&!rex ? -1 : 1
-      const cosA=(femur**2+reachLength**2-shin**2)/(2*femur*reachLength)
-      const cosB=(reachLength**2-femur**2-shin**2)/(2*femur*shin)
-      shoulder.rotation.x=Math.atan2(-targetZ,drop)-bend*Math.acos(Math.max(-1,Math.min(1,cosA)))
-      shoulder.rotation.z=side*.025
-      knee.rotation.x=bend*Math.acos(Math.max(-1,Math.min(1,cosB)))
+      const cosA=(upper**2+reachLength**2-lower**2)/(2*upper*reachLength)
+      const cosB=(reachLength**2-upper**2-lower**2)/(2*upper*lower)
+      shoulder.rotation.x=upperRest+Math.atan2(-targetZ,drop)-bend*Math.acos(Math.max(-1,Math.min(1,cosA)))
+      knee.rotation.x=lowerRest-upperRest+bend*Math.acos(Math.max(-1,Math.min(1,cosB)))
       // Cancel torso pitch and bank at the ankle to keep planted feet flat.
       ankle.rotation.x=-this.body.rotation.x-shoulder.rotation.x-knee.rotation.x+walk*lift*3.2
       ankle.rotation.z=-this.body.rotation.z-shoulder.rotation.z

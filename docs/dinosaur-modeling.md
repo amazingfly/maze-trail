@@ -10,12 +10,16 @@ The models are procedural Babylon.js meshes with a transform rig. The source of 
 4. Give the species one profile feature and one front or rear feature. The Triceratops has a horned frill with markings behind it. The Stegosaurus has alternating plates and paired tail spikes. The T. rex has a broad muzzle, teeth, short arms, and large hind feet. The Brachiosaurus has a curved neck that rises from a high shoulder.
 5. Keep color variation at two scales. The individual seed creates a small pebbled scale texture. Vertex colors add larger pigment patches, markings, and a lighter underside. Inspect the texture from both near and far so scale contrast does not overwhelm the eyes or disguise joints. Add ornaments only where they help the species read.
 
+Check the bare muzzle in front and profile. On the Triceratops and Stegosaurus the keratin cap grows from a wide muzzle section and turns down at the tip. The Brachiosaurus has a fleshy snout. In side and rear views, check the width of each Stegosaurus plate from root to tip. Carry the cross-section axis through the bend when building a sweep. Recomputing it from world up can twist a plate as its tangent passes through vertical.
+
+Duplicate the first vertex of each textured ring at the far edge of the UV map. Connect the last face to that copy, use a whole number of repeats around the ring, and average both seam normals after deformation. Inspect a dark coat under side lighting to catch both stretched scales and lighting seams.
+
 ## Rig the character
 
 - Use the root for world position, heading, and uniform scale. Place torso, tail, shoulders, and hips under the body node so the body can shift its weight as one unit.
 - Use a shoulder → knee or wrist → ankle or hand chain per limb. Rest translations define upper and lower limb lengths. Put each foot under its ankle. Rotate the knee and ankle to verify they bend about the socket with the foot pointing forward.
 - Put the head under the neck, and the jaw under the head. The jaw pivot sits behind the muzzle and slightly above the lower jaw. Positive jaw rotation opens the mouth in this rig. Place the tongue and lower lining under the jaw and the upper muzzle and teeth on the head.
-- Keep the tail as a single tapered mesh. Save rest vertex positions. Compute each ring's offset from distance along the tail, apply it to the rest positions, and recompute the normals with the scene's right-handed convention. Attach tail ornaments using the same bend curve so spikes follow the surface.
+- Keep the tail as a single tapered mesh. Save rest vertex positions. Compute each ring's offset from distance along the tail, apply it to the rest positions, and recompute the normals with the scene's right-handed convention. Attach tail ornaments using the same bend curve so spikes follow the surface. Preserve their rest attachment coordinates, apply shortening along Z as well as bend in X and Y, and align them with the deformed tangent. Check both extremes of a wag from the rear.
 - Keep render meshes and effects scoped to the Babylon scene. When adding a part, check that a character restart disposes its per-character material and texture and creates a fresh rig.
 
 ## Author and check motion
@@ -26,6 +30,10 @@ The models are procedural Babylon.js meshes with a transform rig. The source of 
 - Keep gaze, tail, and breathing on separate rhythms from the feet. Ease into and out of sits, wags, scratches, and sneezes. Check entry and exit poses in addition to the most expressive frame. When changing the sit depth, check that forefeet stay braced and the rear feet do not pass through the floor.
 - For adults, change proportions before dialing down motion. Broaden the torso and feet, lengthen the species silhouette, shrink and recess eyes, darken the mouth, and emphasize brow and jaw. Use longer stance phases, lower swing arcs, slower gait timing, and restrained head bob. For the roar, brace the limbs and lift the head and throat as the jaw opens.
 - Build sounds in [sound.mjs](../site/3d/sound.mjs). Hatchling calls are short pitched syllables and a little filtered noise. Adult calls combine a lower fundamental, subharmonic, rasp, and longer envelopes. Feed the same note timings to `voiceEnvelope` so the visible jaw follows the audible call.
+
+Check planted pads numerically when changing leg lengths or body bob. During the stance portion of a turning walk, transform the vertices of each padded foot into character-root space and record its lowest Y. A positive value is clearance and a negative value is floor penetration. Exclude airborne feet and T. rex forearms. Test multiple gait phases at both ages. The solver includes the forward offsets of the knee and ankle sockets, torso scale, pitch and bank, and the thickness under the ankle. Leave enough leg length for full extension at the highest hip position.
+
+Review a call head-on at maximum opening. Anchor the top edge of the U-shaped throat lining to the skull and rotate the bottom edge with the jaw. Check that the lining connects the upper and lower surfaces, and the tongue should read as flesh under both scene lights.
 
 ## Reproduce the render review
 
@@ -49,4 +57,4 @@ python3 scripts/render_dinosaur_lineup.py \
   http://localhost:8000/3d/dinosaurs/ ./dinosaur-renders
 ```
 
-The capture script also accepts `--chromium` for an existing Chromium installation. It saves walking, front call, sitting, rear gesture, and size-comparison images. Review at least the front, side, and rear for each change. In the second pass, look for feet slipping or floating, abrupt hip or jaw motion, facial features clipping at the end of a gesture, and horns or plates overlapping on turns. Repeat the capture after fixing anything visible. The lineup is a measuring stage. Check gameplay spacing with the actual maze camera before changing character scale or hit testing.
+The capture script also accepts `--chromium` for an existing Chromium installation. It saves idle, two walking phases, turning, front call, sitting, rear gesture, and size-comparison images. A lineup URL ending in `#time=0.32` holds the pose at 0.32 seconds. Remove the fragment to resume motion. Use the same timestamps and camera angles before and after each edit. Review at least the front, side, and rear for each change. In the second pass, look for feet slipping or floating, abrupt hip or jaw motion, facial features clipping at the end of a gesture, and horns or plates overlapping on turns. Repeat the capture after fixing anything visible. The lineup is a measuring stage. Check gameplay spacing with the actual maze camera before changing character scale or hit testing.

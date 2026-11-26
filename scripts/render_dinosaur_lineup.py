@@ -8,26 +8,31 @@ from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import sync_playwright
 
 VIEWS = (
-    ('three', 'walk', 'Three-quarter · Walking'),
-    ('front', 'call', 'Front · Calling'),
-    ('side', 'sit', 'Side · Sitting'),
-    ('rear', 'gesture', 'Rear · Gestures'),
+    ('three', 'idle', .8, 'Three-quarter · Idle'),
+    ('side', 'walk', .32, 'Side · Walk at 0.32 s'),
+    ('side', 'walk', .49, 'Side · Walk at 0.49 s'),
+    ('three', 'turn', .9, 'Three-quarter · Turning stride'),
+    ('front', 'call', 1.48, 'Front · Calling'),
+    ('side', 'sit', 1.55, 'Side · Sitting'),
+    ('rear', 'gesture', 1.7, 'Rear · Gestures'),
 )
 
 
-def capture(page, age, angle, pose):
+def capture(page, age, angle, pose, seconds):
     page.locator('#age').select_option(age)
     page.locator('#angle').select_option(angle)
     page.locator('#pose').select_option(pose)
-    # End in the middle of the gesture, with the jaw or limbs in motion.
-    page.wait_for_timeout(1550 if pose in ('sit', 'gesture', 'call') else 450)
+    page.evaluate("""async seconds => {
+      location.hash = 'time=' + seconds
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    }""", seconds)
     return Image.open(BytesIO(page.locator('#stage').screenshot())).convert('RGB')
 
 
 def save_sheet(views, destination):
     width, height = 1060, 380
     captions = 36
-    sheet = Image.new('RGB', (2 * width, 2 * (height + captions)), '#122923')
+    sheet = Image.new('RGB', (2 * width, ((len(views) + 1) // 2) * (height + captions)), '#122923')
     pen = ImageDraw.Draw(sheet)
     font = ImageFont.load_default(size=21)
     for i, (image, title) in enumerate(views):
@@ -58,12 +63,12 @@ def main():
         page.locator('#sound:enabled').wait_for(timeout=20000)
         for age in ['baby', 'adult']:
             views = [
-                (capture(page, age, angle, pose),
+                (capture(page, age, angle, pose, seconds),
                  'Front · Roaring' if age == 'adult' and pose == 'call' else title)
-                for angle, pose, title in VIEWS
+                for angle, pose, seconds, title in VIEWS
             ]
             save_sheet(views, args.destination / f'{age}-poses.jpg')
-        capture(page, 'comparison', 'three', 'idle').save(
+        capture(page, 'comparison', 'three', 'idle', .8).save(
             args.destination / 'scale-comparison.jpg', quality=93
         )
         browser.close()
