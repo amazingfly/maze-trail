@@ -373,19 +373,25 @@ byId('restart').addEventListener('click', () => enter(true))
 byId('menu').addEventListener('click', () => goHome())
 panel.addEventListener('cancel', event => {
   event.preventDefault()
-  if (mode === 'complete') goHome()
+  if (mode === 'paused') enter(false)
+  else if (mode === 'complete') goHome()
 })
 window.addEventListener('keydown', event => {
-  if (mode !== 'play' || event.ctrlKey || event.metaKey || event.altKey) return
+  if (event.ctrlKey || event.metaKey || event.altKey) return
+  if (event.key === 'Escape' && (mode === 'play' || mode === 'paused')) {
+    event.preventDefault()
+    if (!event.repeat) {
+      if (mode === 'play') openPanel(false)
+      else enter(false)
+    }
+    return
+  }
+  if (mode !== 'play') return
   if (moveKeys.has(event.code)) {
     event.preventDefault()
     keys.add(event.code)
   }
   if (event.repeat) return
-  if (event.code === 'Escape') {
-    event.preventDefault()
-    openPanel(false)
-  }
   if (event.code === 'KeyH') byId('hint').click()
   if (event.code === 'KeyM') byId('map-toggle').click()
 })
@@ -398,8 +404,13 @@ document.addEventListener('fullscreenchange', () => {
   const fullscreen = document.fullscreenElement === game
   const exited = wasFullscreen && !fullscreen
   wasFullscreen = fullscreen
-  if (fullscreen && (display === 'browser' || mode === 'menu')) leaveFullscreen()
-  if (exited && mode === 'play') openPanel(false)
+  if (fullscreen) {
+    if (display === 'browser' || mode === 'menu') leaveFullscreen()
+    else navigator.keyboard?.lock?.(['Escape']).catch(() => {})
+  } else if (exited) {
+    navigator.keyboard?.unlock?.()
+    if (mode === 'play') openPanel(false)
+  }
 })
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === view
