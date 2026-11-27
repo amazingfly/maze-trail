@@ -8,7 +8,7 @@
   <title>Dinosaur Adventures 3D · Maze Trail</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./game.css?v=15">
+  <link rel="stylesheet" href="./game.css?v=18">
 </head>
 <body>
   <main id="game" data-mode="menu">
@@ -50,7 +50,7 @@
 
     <div class="preview-tag" id="preview-tag" hidden><span>OVERHEAD VIEW</span><strong id="preview-name"></strong></div>
     <section class="hud" id="hud" aria-label="Expedition status" hidden>
-      <div class="location"><span id="level-page"></span><strong id="level-title"></strong><span id="mission">Find the golden gate</span></div>
+      <div class="location"><span id="level-page"></span><strong id="level-title"></strong><span id="mission">Rescue the hatchling just past the first turn</span></div>
       <div class="map-panel" id="map-panel" hidden>
         <canvas id="map" width="320" height="320" aria-label="Map showing your position and heading"></canvas>
         <span><b></b> You <b></b> Entrance <b></b> Exit</span>
@@ -63,6 +63,7 @@
         <span class="bomb-count" title="Bomb charges">✹ <b id="bomb-count">0</b></span>
         <div id="abilities" aria-label="Active powers"></div>
       </div>
+      <button id="rescue-hatchling" type="button" hidden>Rescue hatchling</button>
       <div id="pickup-message" aria-live="polite"></div>
     </div>
     <div class="reticle" aria-hidden="true" hidden></div>
@@ -104,6 +105,6 @@
       </div>
     </dialog>
   </main>
-  <script type="module" src="./game.mjs?v=17"></script>
+  <script type="module" src="./game.mjs?v=18"></script>
 </body>
 </html>

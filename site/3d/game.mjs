@@ -12,6 +12,7 @@ const panel = byId('panel')
 const choice = byId('maze-choice')
 const start = byId('start')
 const notice = byId('notice')
+const rescueButton = byId('rescue-hatchling')
 const minimap = byId('map')
 const mapContext = minimap.getContext('2d')
 const mapBase = document.createElement('canvas')
@@ -208,6 +209,8 @@ function resetPlayer() {
   run.herd=trailheadHerd(world.placements)
   run.hatchlings=findHatchlings(layout,selection)
   byId('hatchling-count').textContent='0/'+run.hatchlings.length
+  byId('mission').textContent='Rescue the hatchling just past the first turn'
+  rescueButton.hidden=true
   world.setExpedition(run)
   updatePowers()
   footprints = false
@@ -320,6 +323,20 @@ function drawMap() {
     mapContext.fillRect(x-3,z-3,6,6)
     mapContext.strokeStyle='#fff'
     mapContext.strokeRect(x-3,z-3,6,6)
+  }
+  for (const actor of run.hatchlings) {
+    if (actor.following) continue
+    const [x,z]=projectMap(actor.x,actor.z)
+    mapContext.beginPath()
+    mapContext.moveTo(x,z-7)
+    mapContext.lineTo(x+6,z)
+    mapContext.lineTo(x,z+7)
+    mapContext.lineTo(x-6,z)
+    mapContext.closePath()
+    mapContext.fillStyle='#f1ffc5'
+    mapContext.fill()
+    mapContext.strokeStyle='#122c27'
+    mapContext.stroke()
   }
   mapContext.save()
   mapContext.translate(...projectMap(player.x, player.z))
@@ -447,6 +464,15 @@ function placeBomb(direct = false) {
   updatePowers()
 }
 
+function nearbyRescue() {
+  if (player.y>.7) return undefined
+  return run.hatchlings.find(actor => !actor.following &&
+    Math.hypot(actor.x-player.x,actor.z-player.z)<1.35 &&
+    layout.openLine(player.x,player.z,actor.x,actor.z))
+}
+
+rescueButton.addEventListener('click', () => greet())
+
 function greet(event) {
   if(mode!=='play') return false
   let {yaw,pitch}=player
@@ -457,9 +483,13 @@ function greet(event) {
     yaw-=Math.atan((event.clientX-bounds.left-bounds.width/2)*scale)
     pitch-=Math.atan((event.clientY-bounds.top-bounds.height/2)*scale)
   }
-  const actor=targetHatchling(run.hatchlings,player,layout,yaw,pitch)
+  const actor=(!event && nearbyRescue()) || targetHatchling(run.hatchlings,player,layout,yaw,pitch)
   if(!actor) return false
   const joined=recruitHatchling(actor,run.time)
+  if(joined) {
+    rescueButton.hidden=true
+    byId('mission').textContent='Lead your hatchling to the golden gate'
+  }
   const replied=callHatchling(actor,player,run.time,audio,true)
   if(joined || replied) {
     const count=run.hatchlings.filter(item=>item.following).length
@@ -546,10 +576,10 @@ function tickExpedition(dt, dinosaurs) {
   if(run.hudTick!==second) {
     run.hudTick=second
     updatePowers()
+    rescueButton.hidden=!nearbyRescue()
     const hatchling=targetHatchling(run.hatchlings,player,layout,player.yaw,player.pitch)
-    byId('pickup-message').textContent=time<run.messageUntil ? run.message : hatchling ? (hatchling.following
-      ? (touchControls() ? 'Tap to greet' : 'Click or press C to greet')
-      : (touchControls() ? 'Tap to invite' : 'Click or press C to invite')) : ''
+    byId('pickup-message').textContent=time<run.messageUntil ? run.message : hatchling?.following
+      ? (touchControls() ? 'Tap to greet' : 'Click or press C to greet') : ''
   }
 }
 
@@ -577,6 +607,10 @@ function paint() {
       lastRoute=[player.x,player.z]
       world.setHint(layout.pathFrom(...lastRoute),true)
     }
+  } else if (run.hatchlings.some(actor=>!actor.following)) {
+    if (hintCell!=='rescue' || lastRoute) world.setHint(layout.rescueTrail())
+    hintCell='rescue'
+    lastRoute=null
   } else if (footprints) {
     const cell = layout.cellAt(player.x, player.z)
     const inTrailhead=cell===undefined && layout.trailheadContains(player.x,player.z)
@@ -586,8 +620,9 @@ function paint() {
       hintCell = hint
     }
     lastRoute=null
-  } else if(world.blueHint) {
+  } else if(world.blueHint || hintCell==='rescue') {
     world.setHint([])
+    hintCell=undefined
     lastRoute=null
   }
   world.draw(player)
@@ -819,7 +854,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=17'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=18'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()

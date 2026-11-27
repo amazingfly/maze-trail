@@ -482,6 +482,7 @@ export class World {
     this.run=null
     this.crystalVisuals=[]
     this.hatchlings=[]
+    this.rescueMarkers=[]
     this.trackVisuals=new Map()
     this.particleVisuals=[]
     this.smokeVisuals=[]
@@ -637,6 +638,8 @@ export class World {
     if (this.switchingEngine || !this.scene) return
     for (const mesh of this.crystalVisuals) mesh.dispose(false,true)
     for (const hatchling of this.hatchlings) hatchling.root.dispose(false,true)
+    for (const marker of this.rescueMarkers) marker.dispose(false,true)
+    this.rescueMarkers=[]
     this.hatchlings=[]
     for (const mesh of this.trackVisuals.values()) mesh.dispose()
     this.trackMaterial?.dispose()
@@ -659,6 +662,10 @@ export class World {
     this.hatchlings=run.hatchlings.map((actor,index)=>{
       const model=new Hatchling(this.scene,actor.kind,index+this.layout.data.centers.length)
       model.root.scaling.setAll(.90)
+      const marker=CreatePolyhedron('hatchling rescue marker',{type:1,size:.061},this.scene)
+      marker.material=surface(this.scene,'rescue glow',0xe7ffac,.9)
+      marker.isPickable=false
+      this.rescueMarkers.push(marker)
       return model
     })
     for(const item of run.loot) {
@@ -817,6 +824,12 @@ export class World {
       const ground=this.layout.groundAt(actor.x,actor.z)
       model.root.position.set(actor.x,ground,actor.z)
       model.root.rotation.y=actor.yaw
+      const marker=this.rescueMarkers[index]
+      marker.setEnabled(!actor.following)
+      if(!actor.following) {
+        marker.position.set(actor.x,ground+(actor.kind==='longneck'?.91:.69)+.045*Math.sin(time*3.2),actor.z)
+        marker.rotation.y=time*1.6
+      }
       model.pose(actor.clock,{
         walk:actor.walk, gaitTime:actor.gaitClock, bank:actor.bank, action:actor.action,progress:(time-actor.actionAt)/actor.actionLength || 0,
         voice:voiceEnvelope(actor.call,time),interest:actor.interest,

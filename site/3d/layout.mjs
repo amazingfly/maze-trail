@@ -155,11 +155,30 @@ export class Layout {
 
   testCorner() {
     const route=this.entranceRoute()
-    for(const cell of route.slice(1)) {
+    const {centers}=this.data
+    let previous=this.entrance
+    for(let i=1;i<route.length;i++) {
+      const cell=route[i]
       if(cell===this.finish) break
-      if(!this.openLine(...this.entrance,...this.data.centers[cell])) return cell
+      const [x,z]=centers[route[i-1]], [tx,tz]=centers[cell]
+      const ax=x-previous[0], az=z-previous[1], bx=tx-x, bz=tz-z
+      const turning=ax*bx+az*bz < .82*Math.hypot(ax,az)*Math.hypot(bx,bz)
+      if(turning || !this.openLine(...this.entrance,tx,tz)) return cell
+      previous=[x,z]
     }
-    return route[Math.min(2,route.length-1)]
+    return route[Math.min(1,route.length-1)]
+  }
+
+  rescueTrail() {
+    const route=[this.entrance,this.start]
+    const target=this.testCorner()
+    let cell=this.data.openings[0][0]
+    while(cell!==target) {
+      const [next,crossing]=this.towardExit.get(cell)
+      route.push(crossing,this.data.centers[next])
+      cell=next
+    }
+    return route
   }
 
   resetWalls() {

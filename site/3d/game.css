@@ -219,6 +219,11 @@ dialog p { line-height: 1.45; }
 }
 [data-mode="menu"] #expedition-status, [data-mode="paused"] #expedition-status,
 [data-mode="complete"] #expedition-status { display:none; }
+#rescue-hatchling {
+  pointer-events: auto;
+  background: #d4ef9d;
+  color: var(--ink);
+}
 .loot-badges, #abilities { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
 .loot-badges span, #pickup-message:not(:empty) {
   background:#10261bea; border:1px solid var(--line); border-radius:8px; padding:.24rem .52rem;
