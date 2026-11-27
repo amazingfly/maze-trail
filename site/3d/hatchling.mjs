@@ -319,7 +319,7 @@ export class Hatchling {
     this.jaw=node('hinged lower jaw',scene,this.head,[0,-.049,-.028])
     hide('lower jaw',this.jaw,[0,-.026,snout*.84],[headWidth*.80,.034,snout*.82],.90)
     solid('inner mouth',this.jaw,[0,-.008,snout*.88],[headWidth*.72,.014,snout*.74],mouth)
-    solid('soft tongue',this.jaw,[0,.000,snout*1.04],[headWidth*(adult?.42:.49),.008,snout*(adult?.36:.46)],tongue)
+    this.tongue=solid('soft tongue',this.jaw,[0,.000,snout*1.04],[headWidth*(adult?.42:.49),.008,snout*(adult?.36:.46)],tongue)
     // A U-shaped lining connects the jaws at the throat. Its front edge stays open.
     this.throat=new Mesh('flexible mouth lining',scene)
     this.throat.parent=this.head
@@ -525,9 +525,21 @@ export class Hatchling {
     const shake=action==='sneeze'?Math.sin(Math.PI*clamp((progress-.08)/.84)):0
     const scratch=action==='scratch'?act:0
     const wag=action==='wag'?act:0
+    const yawn=action==='yawn'?act:0
+    const gape=yawn*smooth((progress-.09)/.44)*smooth((.88-progress)/.26)
+    const exhale=yawn*smooth((progress-.58)/.17)*smooth((1-progress)/.18)
+    const scuff=action==='scuff'?act:0
+    const watchingFoot=scuff*smooth(progress/.16)*smooth((.91-progress)/.29)
+    // Reach above the floor, pull back in contact, then pick up the toes to reset.
+    const pawWeight=action==='scuff'?idleWeight:0
+    const rake=pawWeight ? pawWeight*(adult?.94:1)*(.115*smooth((progress-.12)/.26)
+      -.178*smooth((progress-.42)/.27)+.063*smooth((progress-.72)/.23)) : 0
+    const pawLift=pawWeight ? pawWeight*(adult?.84:1)*(.079*Math.sin(Math.PI*clamp((progress-.10)/.34))**2
+      +.051*Math.sin(Math.PI*clamp((progress-.70)/.24))**2) : 0
+    const drag=scuff*smooth((progress-.40)/.14)*smooth((.80-progress)/.19)
     const rex=this.kind==='rex'
     this.body.position.y=.005*breath+walk*(adult?.61:1)*(.004+.011*Math.sin(gait*2+.5))-.072*sit+.027*shake+.018*roar
-    this.body.scaling.set(1+.010*breath+.016*inhale,1+.011*breath+.018*roar+.013*inhale,1)
+    this.body.scaling.set(1+.010*breath+.016*inhale+.024*gape,1+.011*breath+.018*roar+.013*inhale+.028*gape,1)
     this.body.rotation.z=-bank*.075*walk+walk*(adult?.031:.047)*Math.sin(gait)+.018*shake*Math.sin(progress*36)
       +wag*.043*Math.sin(progress*TAU*2.45+.5)
     this.body.rotation.x=sit*-.14+walk*.038*Math.sin(gait*2)-.07*shake
@@ -563,6 +575,10 @@ export class Hatchling {
         this.neck.rotation.x-=.10*dip
       }
     }
+    this.body.position.y-=.017*scuff+.012*drag+.013*exhale
+    this.body.rotation.z+=this.listenSide*(rex?.14:.065)*scuff
+    this.body.rotation.x+=.065*scuff-.048*gape+.055*exhale
+    this.neck.rotation.x+=.23*scuff+.11*drag-.19*gape+.09*exhale
     this.body.rotation.x-=.046*lift
     this.body.rotation.z+=.043*settle
     this.neck.rotation.x-=(this.kind==='longneck'?.13:.21)*lift
@@ -578,6 +594,11 @@ export class Hatchling {
     this.head.rotation.x-=(this.kind==='longneck'?.16:.09)*lift+.13*inhale
     this.head.rotation.z+=.26*tilt-.037*settle
     this.jaw.rotation.x=.012+voice*(adult?.86:.67)+roar*.22+shake*.34*Math.exp(-((progress-.49)**2)/.013)
+    this.head.rotation.x+=(this.kind==='longneck'?.28:.18)*watchingFoot-.16*gape+.07*exhale
+    this.head.rotation.y+=this.listenSide*(.22*watchingFoot+.12*drag)
+    this.jaw.rotation.x=Math.max(this.jaw.rotation.x,.012+(adult?.68:.75)*gape)
+    this.tongue.rotation.x=-.12*gape
+    this.tongue.scaling.y=1+.27*gape
     if(this.jaw.rotation.x!==this.liningAngle){
       this.liningAngle=this.jaw.rotation.x
       const jawSin=Math.sin(this.jaw.rotation.x),jawCos=Math.cos(this.jaw.rotation.x)
@@ -592,15 +613,15 @@ export class Hatchling {
     const blinkTick=(t+.27)%(3.37+this.type.gait*.7)
     const blink=1-.91*Math.sin(Math.PI*clamp(blinkTick/.17))
     for(const {globe,gaze,nostril,side,brow} of this.eyes) {
-      globe.scaling.y=blink*(adult?.74:1)*(1-.35*shake-.17*roar)
+      globe.scaling.y=blink*(adult?.74:1)*(1-.35*shake-.17*roar-.36*yawn-.44*gape-.19*exhale)
       gaze.rotation.y=.18*glance
-      gaze.rotation.x=-.10*sniff
+      gaze.rotation.x=-.10*sniff+.24*watchingFoot
       brow.position.y=.034+.007*Math.max(0,glance*side)
       nostril.scaling.set(1+.24*inhale,1+.52*inhale,1)
     }
     const tailWave=(.054+.07*walk)*Math.sin(adult?t*1.8:t*3.9)-.050*survey-.072*pivot+wag*.13*Math.sin(progress*TAU*2.45)
-      -bank*.11*walk-.092*counterbalance
-    const rearLift=.013*breath+.036*walk*Math.sin(gait+.4)-.046*sit+.046*roar
+      -bank*.11*walk-.092*counterbalance-this.listenSide*.072*scuff
+    const rearLift=.050*drag-.034*exhale+.013*breath+.036*walk*Math.sin(gait+.4)-.046*sit+.046*roar
     for(let i=0;i<this.tailRest.length;i+=3) {
       const back=clamp(-this.tailRest[i+2]/this.tailLength)
       this.tailStream[i]=this.tailRest[i]+tailWave*back**1.5
@@ -636,16 +657,18 @@ export class Hatchling {
       if(arm) {
         shoulder.position.z=.121+.042*reach
         shoulder.rotation.x=-.41+walk*.22*Math.sin(cycle*TAU)-.17*Math.sin(t*3.2+side)-reach*(1.12+.19*Math.sin(progress*46))
-        shoulder.rotation.z=side*.10-reach*.21
+        shoulder.rotation.x-=.40*scuff+.17*side*this.listenSide*drag
+        shoulder.rotation.z=side*(.10+.23*scuff)-reach*.21
         knee.rotation.x=-.54-reach*.51
         ankle.rotation.x=.12*Math.sin(t*4.2+side)+reach*.71
         continue
       }
       const footTravel=forward*(1-Math.abs(pivot))-forward*side*pivot
-      const targetZ=footTravel+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
+      const pawing=side===this.listenSide && front!==rex
+      const targetZ=footTravel+(pawing?rake:0)+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
       const hip=shoulder.position
       // Solve in the limb plane for the requested sole height in root space.
-      const ankleHeight=.033+lift
+      const ankleHeight=.033+lift+(pawing?pawLift:0)
       const drop=hip.y+(m[13]+m[1]*hip.x+m[9]*(hip.z+targetZ)-ankleHeight)/m[5]
       const reachLength=Math.min(upper+lower-.0001,Math.max(Math.abs(upper-lower)+.0001,Math.hypot(drop,targetZ)))
       const bend=front&&!rex ? -1 : 1
@@ -654,7 +677,7 @@ export class Hatchling {
       shoulder.rotation.x=upperRest+Math.atan2(-targetZ,drop)-bend*Math.acos(Math.max(-1,Math.min(1,cosA)))
       knee.rotation.x=lowerRest-upperRest+bend*Math.acos(Math.max(-1,Math.min(1,cosB)))
       // Cancel torso pitch and bank at the ankle to keep planted feet flat.
-      ankle.rotation.x=-this.body.rotation.x-shoulder.rotation.x-knee.rotation.x+walk*lift*3.2
+      ankle.rotation.x=-this.body.rotation.x-shoulder.rotation.x-knee.rotation.x+walk*lift*3.2+(pawing?pawLift*.90:0)
       ankle.rotation.z=-this.body.rotation.z-shoulder.rotation.z
     }
   }

@@ -39,6 +39,10 @@ All four species share one rig interface. A gesture drives a normalized `progres
 | Chirp and roar | Hatchling calls and adult roars | Hear call or Hear roar in the lineup. The jaw tracks each syllable. The adult roar also braces the legs and lifts the throat. |
 | Sniff the air | Both ages, every species | Trailhead, rescued companions and lineup. The neck lifts, then two unequal breaths flare the nostrils and expand the chest. About 2.35 seconds for hatchlings and 3 seconds for adults. |
 | Listening tilt | Both ages, every species | Trailhead, rescued companions and lineup. The eyes turn first, then the head tips, weight shifts, and the tail counterbalances. The individual seed determines the side. About 2.8 seconds for hatchlings and 3.6 seconds for adults. |
+| Ground scratch | Both ages, every species | Trailhead, rescued companions and lineup. One forefoot reaches forward, rakes the soil, lifts again and returns. T. rex uses a hind foot and raises its arms to balance. Hatchlings take 2.5 seconds, adults about 3.2. |
+| Sleepy yawn | Both ages, every species | Trailhead, rescued companions and lineup. Eyes droop as the jaw opens and chest expands. The head settles on the exhale. Hatchlings take 3.25 seconds, adults about 4.1. |
+
+Review a ground scratch from the front and side. Check the lift, the toe meeting the ground, the backward drag and the return step separately. The weight-bearing feet should stay down throughout. For a yawn, compare the opening, widest gape and recovery. The chest, jaw and eyes should reach their resting positions in sequence.
 
 Sniffing and listening use the muzzle, eyes, spine and tail, so they work on both bipeds and quadrupeds. Keep the Brachiosaurus neck swing smaller and transfer some lift to the skull. Check the sniff in profile and the listening tilt head-on. In rear view the tail should settle after the head. When extending either gesture, compare its first and last frames with Idle at the same time and gaze input. Test a companion mid-gesture by starting to run. It should start moving immediately while its expression eases out.
 

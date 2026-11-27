@@ -19,6 +19,10 @@ VIEWS = (
     ('three', 'sniff', 1.53, 'Three-quarter · Second sniff'),
     ('front', 'listen', 1.24, 'Front · Listening tilt'),
     ('rear', 'listen', 1.72, 'Rear · Tail counterbalance'),
+    ('side', 'scuff', .70, 'Side · Foot reaches'),
+    ('three', 'scuff', 1.38, 'Three-quarter · Ground scratch'),
+    ('front', 'yawn', 1.66, 'Front · Yawn'),
+    ('side', 'yawn', 2.59, 'Side · Exhale'),
 )
 
 

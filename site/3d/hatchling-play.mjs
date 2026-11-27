@@ -6,8 +6,9 @@ export const species = {
 }
 
 
-const gestureSeconds={sniff:2.35,listen:2.8,sit:2.85,scratch:1.8}
-export const isQuietGesture=action=>action==='sniff' || action==='listen'
+const quietGestures=['sniff','listen','scuff','yawn']
+const gestureSeconds={scuff:2.5,yawn:3.25,sniff:2.35,listen:2.8,sit:2.85,scratch:1.8}
+export const isQuietGesture=action=>quietGestures.includes(action)
 
 export function gestureDuration(action,adult=false) {
   const seconds=gestureSeconds[action] ?? 1.24
@@ -17,7 +18,7 @@ export function gestureDuration(action,adult=false) {
 export function trailheadGesture(time,index,adult) {
   const interval=8.6+index*.38
   const clock=time+index*2.31
-  const action=(Math.floor(clock/interval)+index)%2 ? 'listen' : 'sniff'
+  const action=quietGestures[(Math.floor(clock/interval)+index)%quietGestures.length]
   const progress=(clock%interval)/gestureDuration(action,adult)
   return progress<1 ? {action,progress} : {}
 }
@@ -193,13 +194,13 @@ export function walkHatchlings(actors,player,time,dt,layout,audio) {
       actor.gestureWeight=isQuietGesture(actor.action) ? Math.max(0,(actor.gestureWeight ?? 1)-dt/.26) : 0
     }
     if(time-actor.actionAt>=actor.actionLength || actor.gestureWeight===0) actor.action=''
-    if(time>=actor.nextCall && distance<3.4 && (!actor.following || inView)) {
+    if(actor.action!=='yawn' && time>=actor.nextCall && distance<3.4 && (!actor.following || inView)) {
       callHatchling(actor,player,time,audio)
       actor.nextCall=time+7+Math.random()*12
     }
     if(!actor.action && time>=actor.nextAction &&
         (!actor.following && distance<3 || inView && !performing && (stopped || pace<.67 && distance<1.35))) {
-      const actions=actor.kind==='rex' ? ['wag','listen','scratch','sniff','sit','sneeze'] : ['wag','listen','sniff','sit','sneeze']
+      const actions=actor.kind==='rex' ? ['wag','scuff','listen','scratch','yawn','sniff','sit','sneeze'] : ['wag','scuff','listen','yawn','sniff','sit','sneeze']
       const index=actor.following ? (actor.performance ?? 0) % actions.length : Math.floor(Math.random()*actions.length)
       actor.performance=(actor.performance ?? 0)+1
       actor.gestureWeight=1
