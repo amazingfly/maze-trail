@@ -1,6 +1,7 @@
 // Distances are maze units. Each adult keeps a small home range beside the entrance.
 const profiles = {
   trike: {pace:.48, turn:.48, rest:3.8},
+  anky: {pace:.40, turn:.38, rest:4.3},
   stego: {pace:.39, turn:.36, rest:4.6},
   rex: {pace:.67, turn:.64, rest:2.9},
   longneck: {pace:.45, turn:.39, rest:4.1},

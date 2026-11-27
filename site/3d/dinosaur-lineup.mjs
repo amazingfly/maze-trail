@@ -20,7 +20,7 @@ const status=input('status'), sound=input('sound')
 const audio=new JungleAudio()
 const kinds=Object.keys(species)
 const headings={front:0,three:-.63,side:-Math.PI/2,rear:Math.PI-.54}
-const gesture=['sneeze','wag','scratch','sit']
+const gesture=['sneeze','wag','scratch','sit','scuff']
 let audition, started=performance.now()
 
 // A review link can hold both the gesture and the independent gait clock at the same time.
@@ -111,7 +111,8 @@ try {
   function arrange(){
     engine.resize()
     const narrow=canvas.clientWidth<640
-    const columns=narrow?2:4
+    const columns=narrow?2:kinds.length
+    const rows=Math.ceil(kinds.length/columns)
     const comparison=age.value==='comparison'
     const scale=age.value==='baby'?1:5
     for(const {model,index,adult} of animals) {
@@ -120,20 +121,20 @@ try {
       if(!visible) continue
       const col=index%columns, row=Math.floor(index/columns)
       const x=(col-(columns-1)/2)*scale*1.19
-      const z=(narrow? .58-row*1.27 : 0)*scale
+      const z=((rows-1)/2-row)*1.32*scale
       model.root.position.set(x+(comparison&&!adult ? .32*scale : 0),0,z+(comparison&&!adult ? .45*scale : 0))
       model.root.rotation.y=headings[angle.value]
     }
     const aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight)
-    const halfWidth=scale*(narrow?1.38:2.55)
-    const halfHeight=Math.max(halfWidth/aspect,scale*(narrow?1.13:.65))
+    const halfWidth=scale*(narrow?1.38:columns*.595+.17)
+    const halfHeight=Math.max(halfWidth/aspect,scale*(narrow?.58+rows*.33:.65))
     camera.orthoTop=halfHeight
     camera.orthoBottom=-halfHeight
     camera.orthoLeft=-halfHeight*aspect
     camera.orthoRight=halfHeight*aspect
     floor.scaling.set(scale*60,1,scale*13)
     floor.position.z=scale*3.10
-    camera.position.set(0,scale*(narrow?3.15:1.64),scale*6.15)
+    camera.position.set(0,scale*(narrow?4.1:1.64),scale*6.15)
     camera.setTarget(new Vector3(0,scale*(narrow?.40:.44),0))
     scene.fogDensity=.028/scale
     sound.textContent=age.value==='baby'?'Hear call':'Hear roar'
@@ -167,7 +168,7 @@ try {
       const cycle=((elapsed+index*.17)%duration)/duration
       const walking=pose.value==='walk' || pose.value==='turn'
       const selected=pose.value==='gesture'
-        ? adult ? ['wag','wag','roar','roar'][index] : gesture[index]
+        ? adult ? ['wag','wag','roar','roar','scuff'][index] : gesture[index]
         : shared || pose.value==='sit' ? pose.value : pose.value==='call' && adult ? 'roar' : ''
       let voice=pose.value==='call' ? Math.sin(Math.PI*cycle)**2*(adult?.86:.65):0
       let action=selected,progress=cycle

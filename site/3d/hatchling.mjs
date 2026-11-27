@@ -18,6 +18,7 @@ const adultCoats = {
   trike:    { skin:0xb9684d, shadow:0x704638, cream:0xd9aa78, accent:0xd6855b },
   stego:    { skin:0x5b9078, shadow:0x3e5e50, cream:0xc3bd84, accent:0xe39a53 },
   rex:      { skin:0x949a52, shadow:0x505734, cream:0xceb778, accent:0xb68b4c },
+  anky:     { skin:0xc58a48, shadow:0x826046, cream:0xf1c788, accent:0x408d86 },
   longneck: { skin:0x6597a9, shadow:0x416478, cream:0xb5d9ce, accent:0x90a6c9 },
 }
 
@@ -273,10 +274,10 @@ export class Hatchling {
       mesh.material=skinMat
       return mesh
     }
-    const rex=kind==='rex', long=kind==='longneck', trike=kind==='trike', stego=kind==='stego'
-    const torsoY=rex?.355:long?.355:.288
+    const rex=kind==='rex', long=kind==='longneck', trike=kind==='trike', stego=kind==='stego', anky=kind==='anky'
+    const torsoY=rex?.355:long?.355:anky?.260:.288
     const mass=adult?1.17:1
-    const ribSize=[(rex?.123:.138)*mass,.125*mass,(rex?.205:.216)*mass]
+    const ribSize=[(rex?.123:anky?.180:.138)*mass,(anky?.114:.125)*mass,(rex?.205:anky?.250:.216)*mass]
     const ribProfile=1.06
     const ribcage=hide('rounded ribcage',this.body,[0,torsoY,.002],ribSize,ribProfile)
     this.collisionMeshes.push(ribcage)
@@ -301,7 +302,7 @@ export class Hatchling {
     if (adult) {
       this.head.scaling.set(rex?1.09:.93,rex?.96:.84,rex?1.24:trike?1.09:.98)
     }
-    const headWidth=rex?.121:trike?.113:stego?.092:.087
+    const headWidth=rex?.121:trike?.113:anky?.109:stego?.092:.087
     const snout=rex?.150:trike?.128:stego?.110:.119
     this.collisionMeshes.push(sweep('continuous skull and upper snout',scene,this.head,[
       [0,.029,-.100,.005,.006],
@@ -339,7 +340,7 @@ export class Hatchling {
     VertexData.ComputeNormals(lining.positions,lining.indices,lining.normals,{useRightHandedSystem:true})
     lining.applyToMesh(this.throat,true)
     this.lining=lining
-    if(trike || stego) {
+    if(trike || stego || anky) {
       const keratin=material('amber beak',adult?0x9e7852:0xd5aa72)
       sweep('hooked upper beak',scene,this.head,[
         [0,-.011,snout*.99,headWidth*.62,.030],
@@ -411,6 +412,38 @@ export class Hatchling {
       ],null,seed,bone)
       sweep('nose horn',scene,this.head,[[0,.025,.153,.022,.020],[0,.072,.161,.012,.011],[0,.098,.166,.002,.002]],null,seed,bone)
     }
+    if(anky) {
+      // Stagger keeled osteoderms over the shoulder and pelvic armor.
+      const shell=material('malachite armor',adult?0x447d70:0x57a290)
+      const keel=material('sunlit armor keels',adult?0xaac38a:0xc4df9b)
+      const mantle=hide('armored mantle',this.body,[0,torsoY+.030*mass,-.004],
+        [.170*mass,.097*mass,.235*mass])
+      this.collisionMeshes.push(mantle)
+      for(let row=0;row<5;row++) for(let col=-2;col<=2;col++) {
+        const x=col*.054*mass
+        const z=(row-2)*.084+(Math.abs(col)%2)*.018
+        const surface=Math.sqrt(Math.max(.04,1-(x/ribSize[0])**2-(z/ribSize[2])**2))
+        const y=torsoY+.015*mass+ribSize[1]*surface
+        const size=mass*(1-.09*Math.abs(col)+.06*Math.cos(2.3*row+col))
+        const scale=solid('keeled back armor',this.body,[x,y,z],[.046*size,.022*size,.060*size],shell)
+        scale.rotation.z=-col*.20
+        const ridge=solid('armor ridge',scale,[0,.022*mass,0],[.012*mass,.015*mass,.038*mass],keel)
+        ridge.rotation.x=.12
+        scale.rotation.y=.09*Math.sin(row*3+col)
+      }
+      for(const side of [-1,1]) {
+        sweep('cheek horn',scene,this.head,[
+          [side*.081,.008,-.042,.033,.031],[side*.112,.011,-.068,.025,.022],
+          [side*(adult?.161:.141),.024,-.100,.004,.005]],null,seed,bone)
+        for(let i=0;i<4;i++) {
+          const z=.136-i*.085
+          sweep('flank armor spike',scene,this.body,[
+            [side*.137*mass,torsoY+.024,z,.035,.031],
+            [side*.166*mass,torsoY+.045,z-.009,.025,.020],
+            [side*(adult?.217:.196)*mass,torsoY+.066,z-.032,.003,.004]],null,seed,keel)
+        }
+      }
+    }
     if(stego) {
       for(let i=0;i<7;i++){
         const z=.151-i*.049
@@ -435,10 +468,11 @@ export class Hatchling {
       solid('dorsal scales',plateRoot,at,[.018,.015,.021],crest)
     }
 
-    const tailLength=(rex?.535:stego?.473:long?.401:.335)*(adult?1.23:1)
+    const tailLength=(rex?.535:stego?.473:long?.401:anky?.49:.335)*(adult?1.23:1)
     this.tail=node('tail base',scene,this.body,[0,torsoY+.003,-.158])
     const sections=Array.from({length:14},(_,i)=>{
-      const t=i/13, r=.084*mass*(1-t)**.93+.001
+      const t=i/13
+      const r=.084*mass*(1-t)**.93+.001+(anky?.022*mass*smooth((t-.46)/.3):0)
       return [0,.045*Math.sin(t*Math.PI*.7),.018-tailLength*t,r,r*.87]
     })
     this.tailMesh=sweep('continuous tail',scene,this.tail,sections,palette,seed,skinMat)
@@ -452,6 +486,18 @@ export class Hatchling {
     this.tailNormals=normals
     this.tailLength=tailLength
     this.spikes=[]
+    if(anky) {
+      const z=-tailLength*.94
+      const joint=node('tail club hinge',scene,this.tail,[0,.031,z])
+      for(const side of [-1,1]) {
+        const club=solid('tail club',joint,[side*.036*mass,.005,-.026],
+          [.068*mass,.057*mass,.091*mass],crest)
+        club.rotation.y=side*.23
+        this.collisionMeshes.push(club)
+        solid('club crown',joint,[side*.035*mass,.049*mass,-.024],[.040,.016,.049],bone)
+      }
+      this.spikes.push({joint,restZ:z,back:.94})
+    }
     if(stego)for(let i=0;i<2;i++)for(const side of [-1,1]) {
       const z=-tailLength*(.75+i*.105)
       const spike=node('tail spike hinge',scene,this.tail,[0,.031,z])
@@ -564,6 +610,9 @@ export class Hatchling {
       if(this.kind==='trike') {
         this.neck.rotation.x+=.32*dip
         this.body.rotation.x+=.062*dip
+      } else if(this.kind==='anky') {
+        this.body.rotation.z+=.045*survey
+        this.neck.rotation.x+=.18*dip
       } else if(this.kind==='stego') {
         this.body.rotation.z+=.058*survey
         this.neck.rotation.y+=.11*survey

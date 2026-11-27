@@ -3,6 +3,7 @@ export const species = {
   stego: { name:'Stegosaurus', skin:0x49ab8e, shadow:0x286778, cream:0xe1e89c, accent:0xffba4f, iris:0xf2b553, gait:1.46, voice:310 },
   rex: { name:'T. rex', skin:0x92aa4c, shadow:0x506d3c, cream:0xf1db94, accent:0xe2a052, iris:0xffab41, gait:1.75, voice:177 },
   longneck: { name:'Brachiosaurus', skin:0x59b3c2, shadow:0x4778a9, cream:0xbbf6d9, accent:0xcbd2fa, iris:0xeea774, gait:1.19, voice:385 },
+  anky: { name:'Ankylosaurus', skin:0xe1a64f, shadow:0x936254, cream:0xffda98, accent:0x4bafa3, iris:0x75c6b6, gait:1.22, voice:216 },
 }
 
 
@@ -42,7 +43,7 @@ export function trailheadDinosaurs(layout) {
   const actors=[]
   for(const adult of [true,false]) for(const [index,kind] of kinds.entries()) {
     const side=index%2?1:-1
-    const forward=(index<2?4.15:6.7)-(adult?0:1.02)
+    const forward=(index<2?4.15:index<4?6.7:8.9)-(adult?0:1.02)
     const flank=adult ? (index<2?2.53:3.2) : 1.30
     const [px,pz]=layout.spawn
     const clear=([x,z])=>{
