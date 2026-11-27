@@ -6,6 +6,22 @@ export const species = {
 }
 
 
+const gestureSeconds={sniff:2.35,listen:2.8,sit:2.85,scratch:1.8}
+export const isQuietGesture=action=>action==='sniff' || action==='listen'
+
+export function gestureDuration(action,adult=false) {
+  const seconds=gestureSeconds[action] ?? 1.24
+  return seconds*(adult?1.27:1)
+}
+
+export function trailheadGesture(time,index,adult) {
+  const interval=8.6+index*.38
+  const clock=time+index*2.31
+  const action=(Math.floor(clock/interval)+index)%2 ? 'listen' : 'sniff'
+  const progress=(clock%interval)/gestureDuration(action,adult)
+  return progress<1 ? {action,progress} : {}
+}
+
 const kinds = Object.keys(species)
 const deltaAngle = (a,b) => Math.atan2(Math.sin(b-a),Math.cos(b-a))
 
@@ -72,6 +88,7 @@ export function callHatchling(actor,player,time,audio,reply=false) {
   const response=Math.atan2(-dx,-dz)
   if(reply) {
     actor.yaw+=deltaAngle(actor.yaw,response)*.42
+    actor.gestureWeight=1
     actor.action=actor.kind==='rex' ? 'scratch' : 'wag'
     actor.actionAt=time
     actor.actionLength=actor.kind==='rex'?1.65:1.36
@@ -171,24 +188,29 @@ export function walkHatchlings(actors,player,time,dt,layout,audio) {
     const distance=Math.hypot(dx,dz)
     const attention=distance<1.45 || actor.following && slow && distance<2.35
     const inView=actor.following && slow && visibleToPlayer(actor,player,layout)
-    if(actor.action && (time-actor.actionAt>=actor.actionLength || actor.following && !slow)) actor.action=''
+    const leaving=actor.following && !slow
+    if(actor.action && (leaving || actor.gestureWeight<1)) {
+      actor.gestureWeight=isQuietGesture(actor.action) ? Math.max(0,(actor.gestureWeight ?? 1)-dt/.26) : 0
+    }
+    if(time-actor.actionAt>=actor.actionLength || actor.gestureWeight===0) actor.action=''
     if(time>=actor.nextCall && distance<3.4 && (!actor.following || inView)) {
       callHatchling(actor,player,time,audio)
       actor.nextCall=time+7+Math.random()*12
     }
     if(!actor.action && time>=actor.nextAction &&
         (!actor.following && distance<3 || inView && !performing && (stopped || pace<.67 && distance<1.35))) {
-      const actions=actor.kind==='rex' ? ['wag','scratch','sit','sneeze'] : ['wag','sit','sneeze']
+      const actions=actor.kind==='rex' ? ['wag','listen','scratch','sniff','sit','sneeze'] : ['wag','listen','sniff','sit','sneeze']
       const index=actor.following ? (actor.performance ?? 0) % actions.length : Math.floor(Math.random()*actions.length)
       actor.performance=(actor.performance ?? 0)+1
+      actor.gestureWeight=1
       actor.action=actions[index]
       actor.actionAt=time
-      actor.actionLength=actor.action==='sit'?2.85:actor.action==='scratch'?1.8:1.24
+      actor.actionLength=gestureDuration(actor.action)
       actor.nextAction=time+2.9+Math.random()*2.4
       actor.sneezed=false
       if(actor.following) {
         performing=true
-        if(actor.action!=='sneeze') callHatchling(actor,player,time,audio)
+        if(actor.action!=='sneeze' && !isQuietGesture(actor.action)) callHatchling(actor,player,time,audio)
       }
     }
     if(actor.action==='sneeze' && !actor.sneezed && time-actor.actionAt>=actor.actionLength*.43) {
@@ -201,7 +223,7 @@ export function walkHatchlings(actors,player,time,dt,layout,audio) {
 
     let velocity=0
     actor.steer=0
-    if(actor.following && !actor.action) {
+    if(actor.following && (!actor.action || actor.gestureWeight<1)) {
       if(time>=actor.repathAt) {
         const target=formationGoal(actor,actors,player,time,layout,slow)
         if(!actor.goal || Math.hypot(target[0]-actor.goal[0],target[1]-actor.goal[1])>.15 || !actor.route.length) {

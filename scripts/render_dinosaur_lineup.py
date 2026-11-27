@@ -15,6 +15,10 @@ VIEWS = (
     ('front', 'call', 1.48, 'Front · Calling'),
     ('side', 'sit', 1.55, 'Side · Sitting'),
     ('rear', 'gesture', 1.7, 'Rear · Gestures'),
+    ('side', 'sniff', .77, 'Side · First sniff'),
+    ('three', 'sniff', 1.53, 'Three-quarter · Second sniff'),
+    ('front', 'listen', 1.24, 'Front · Listening tilt'),
+    ('rear', 'listen', 1.72, 'Rear · Tail counterbalance'),
 )
 
 

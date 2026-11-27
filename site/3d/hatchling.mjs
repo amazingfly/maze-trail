@@ -7,7 +7,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh.js'
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData.js'
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js'
 
-import { species } from './hatchling-play.mjs'
+import { species, isQuietGesture } from './hatchling-play.mjs'
 
 const rgb = color => Color3.FromInts(color >> 16, (color >> 8) & 255, color & 255)
 const TAU = 2*Math.PI
@@ -230,6 +230,7 @@ export class Hatchling {
     this.bodyMatrix=Matrix.Identity()
     this.bodyOrientation=new Quaternion()
     this.kind=kind
+    this.listenSide=seed%2 ? 1 : -1
     this.type=species[kind]
     this.adult=adult
     const {skin,shadow,cream,accent,iris}={...this.type,...(adult ? adultCoats[kind] : {})}
@@ -355,15 +356,16 @@ export class Hatchling {
       solid('soft orbital ridge',eye,[0,.004,.012],[.047,.051,.027],eyeRidge??crest)
       const globe=node('blink pivot',scene,eye,[0,.001,adult?.020:.026])
       solid('eye white',globe,[0,0,0],[.034,.040,.019],almond)
-      solid('iris',globe,[-side*.005,-.001,.014],[.026,.031,.011],eyeTint)
-      solid('pupil',globe,[-side*.007,.001,.021],[.014,.022,.005],pupil)
-      solid('large eye glint',globe,[-.010,.013,.025],[.008,.008,.003],shine)
-      solid('small eye glint',globe,[.010,-.009,.024],[.0034,.0034,.002],shine)
+      const gaze=node('gaze pivot',scene,globe)
+      solid('iris',gaze,[-side*.005,-.001,.014],[.026,.031,.011],eyeTint)
+      solid('pupil',gaze,[-side*.007,.001,.021],[.014,.022,.005],pupil)
+      solid('large eye glint',gaze,[-.010,.013,.025],[.008,.008,.003],shine)
+      solid('small eye glint',gaze,[.010,-.009,.024],[.0034,.0034,.002],shine)
       if (adult) globe.scaling.set(.70,.74,.84)
-      this.eyes.push(globe)
       const brow=hide('expressive brow',eye,[0,.034,.011],[.049,adult?.024:.016,.027])
       brow.rotation.z=side*(adult?.34:.18)
-      solid('nostril',this.head,[side*headWidth*.53,.014,snout*1.29],[.012,.007,.006],lip)
+      const nostril=solid('nostril',this.head,[side*headWidth*.53,.014,snout*1.29],[.012,.007,.006],lip)
+      this.eyes.push({globe,gaze,nostril,side,brow})
       if(rex)for(let i=0;i<(adult?6:4);i++){
         const z=.071+i*(adult?.019:.030)
         const x=side*headWidth*(.74-.062*i)
@@ -501,25 +503,38 @@ export class Hatchling {
     })
   }
 
-  pose(time,{walk=0,gaitTime=time,action='',progress=0,voice=0,interest=0,bank=0,pivot=0}={}) {
+  pose(time,{walk=0,gaitTime=time,action='',progress=0,gestureWeight=1,voice=0,interest=0,bank=0,pivot=0}={}) {
     const t=time
     const adult=this.adult
     const gait=gaitTime*TAU*this.type.gait*(adult?.58:1)+.19*Math.sin(gaitTime*2.1)
     const roar=action==='roar' ? smooth(progress/.22)*smooth((1-progress)/.28) : 0
     const breath=Math.sin(t*(adult?1.65:2.7))
-    const act=smooth(progress/.27)*smooth((1-progress)/.27)
+    const investigating=isQuietGesture(action)
+    const idleWeight=(1-clamp(walk))*smooth(gestureWeight)
+    const act=action ? smooth(progress/.27)*smooth((1-progress)/.27)*(investigating?idleWeight:1) : 0
+    const sniff=action==='sniff'?act:0
+    // A sustained neck lift carries two shorter breaths of unequal length.
+    const inhale=sniff ? sniff*(Math.exp(-((progress-.32)**2)/.004)+.76*Math.exp(-((progress-.64)**2)/.009)) : 0
+    const lift=sniff*.78+inhale*.22
+    const listening=action==='listen'?idleWeight*this.listenSide*(adult?.76:1):0
+    const glance=listening*smooth(progress/.12)*smooth((1-progress)/.15)
+    const tilt=listening*smooth((progress-.08)/.25)*smooth((1-progress)/.30)
+    const settle=listening*smooth((progress-.18)/.31)*smooth((1-progress)/.22)
+    const counterbalance=listening*smooth((progress-.24)/.32)*smooth((1-progress)/.16)
     const sit=action==='sit'?act:0
     const shake=action==='sneeze'?Math.sin(Math.PI*clamp((progress-.08)/.84)):0
     const scratch=action==='scratch'?act:0
     const wag=action==='wag'?act:0
     const rex=this.kind==='rex'
     this.body.position.y=.005*breath+walk*(adult?.61:1)*(.004+.011*Math.sin(gait*2+.5))-.072*sit+.027*shake+.018*roar
-    this.body.scaling.set(1+.010*breath,1+.011*breath+.018*roar,1)
+    this.body.scaling.set(1+.010*breath+.016*inhale,1+.011*breath+.018*roar+.013*inhale,1)
     this.body.rotation.z=-bank*.075*walk+walk*(adult?.031:.047)*Math.sin(gait)+.018*shake*Math.sin(progress*36)
       +wag*.043*Math.sin(progress*TAU*2.45+.5)
     this.body.rotation.x=sit*-.14+walk*.038*Math.sin(gait*2)-.07*shake
     this.body.rotation.y=wag*.065*Math.sin(progress*TAU*2.45+.8)
     this.neck.rotation.x=.026*breath+walk*.071*Math.sin(gait+.7)-.20*sit+.31*scratch-.17*roar
+    this.neck.rotation.y=0
+    this.neck.rotation.z=0
     // Let the neck lead a scan, then let the chest and pelvis take up the turn.
     // During a stride the pelvis rolls toward the supporting leg.
     const survey=adult ? (1-act)*(.52*Math.sin(t*.56)+.48*interest) : 0
@@ -548,6 +563,11 @@ export class Hatchling {
         this.neck.rotation.x-=.10*dip
       }
     }
+    this.body.rotation.x-=.046*lift
+    this.body.rotation.z+=.043*settle
+    this.neck.rotation.x-=(this.kind==='longneck'?.13:.21)*lift
+    this.neck.rotation.y+=.18*tilt
+    this.neck.rotation.z+=.11*tilt
     this.head.position.set(0,this.headRest[1]-.028*scratch,this.headRest[2]-.035*scratch+.022*voice+.015*roar)
     const sneezeSnap=Math.exp(-((progress-.47)**2)/.003)
     const sneezeRecoil=Math.exp(-((progress-.58)**2)/.008)
@@ -555,6 +575,8 @@ export class Hatchling {
       +shake*(.47*sneezeSnap-.28*sneezeRecoil)+.23*scratch-.19*roar-this.body.rotation.x*.32
     this.head.rotation.y=interest*.43+bank*.23*walk+.077*Math.sin(t*1.9)+walk*.041*Math.sin(gait)+shake*.26*Math.sin(progress*32)
     this.head.rotation.z=(adult?.027:.060)*Math.sin(t*1.1)+shake*.15*Math.sin(progress*32)
+    this.head.rotation.x-=(this.kind==='longneck'?.16:.09)*lift+.13*inhale
+    this.head.rotation.z+=.26*tilt-.037*settle
     this.jaw.rotation.x=.012+voice*(adult?.86:.67)+roar*.22+shake*.34*Math.exp(-((progress-.49)**2)/.013)
     if(this.jaw.rotation.x!==this.liningAngle){
       this.liningAngle=this.jaw.rotation.x
@@ -569,9 +591,15 @@ export class Hatchling {
     }
     const blinkTick=(t+.27)%(3.37+this.type.gait*.7)
     const blink=1-.91*Math.sin(Math.PI*clamp(blinkTick/.17))
-    for(const eye of this.eyes) eye.scaling.y=blink*(adult?.74:1)*(1-.35*shake-.17*roar)
+    for(const {globe,gaze,nostril,side,brow} of this.eyes) {
+      globe.scaling.y=blink*(adult?.74:1)*(1-.35*shake-.17*roar)
+      gaze.rotation.y=.18*glance
+      gaze.rotation.x=-.10*sniff
+      brow.position.y=.034+.007*Math.max(0,glance*side)
+      nostril.scaling.set(1+.24*inhale,1+.52*inhale,1)
+    }
     const tailWave=(.054+.07*walk)*Math.sin(adult?t*1.8:t*3.9)-.050*survey-.072*pivot+wag*.13*Math.sin(progress*TAU*2.45)
-      -bank*.11*walk
+      -bank*.11*walk-.092*counterbalance
     const rearLift=.013*breath+.036*walk*Math.sin(gait+.4)-.046*sit+.046*roar
     for(let i=0;i<this.tailRest.length;i+=3) {
       const back=clamp(-this.tailRest[i+2]/this.tailLength)

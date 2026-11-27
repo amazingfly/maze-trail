@@ -10,7 +10,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js'
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture.js'
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder.js'
 import { Hatchling } from './hatchling.mjs'
-import { species, voiceEnvelope } from './hatchling-play.mjs'
+import { species, voiceEnvelope, gestureDuration, isQuietGesture } from './hatchling-play.mjs'
 import { JungleAudio } from './sound.mjs'
 
 const canvas=document.querySelector('canvas')
@@ -162,11 +162,13 @@ try {
     for (const {model,index,kind,adult} of animals) {
       if(!model.root.isEnabled()) continue
       const local=time+index*.16
-      const cycle=(elapsed+index*.17)%3.8/3.8
+      const shared=isQuietGesture(pose.value)
+      const duration=shared ? gestureDuration(pose.value,adult) : 3.8
+      const cycle=((elapsed+index*.17)%duration)/duration
       const walking=pose.value==='walk' || pose.value==='turn'
       const selected=pose.value==='gesture'
         ? adult ? ['wag','wag','roar','roar'][index] : gesture[index]
-        : pose.value==='sit' ? 'sit' : pose.value==='call' && adult ? 'roar' : ''
+        : shared || pose.value==='sit' ? pose.value : pose.value==='call' && adult ? 'roar' : ''
       let voice=pose.value==='call' ? Math.sin(Math.PI*cycle)**2*(adult?.86:.65):0
       let action=selected,progress=cycle
       if (audition?.kind===kind && audition.adult===adult && time-audition.start<2.2) {

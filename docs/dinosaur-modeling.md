@@ -24,6 +24,24 @@ Duplicate the first vertex of each textured ring at the far edge of the UV map. 
 - Keep the tail as a single tapered mesh. Save rest vertex positions. Compute each ring's offset from distance along the tail, apply it to the rest positions, and recompute the normals with the scene's right-handed convention. Attach tail ornaments using the same bend curve so spikes follow the surface. Preserve their rest attachment coordinates, apply shortening along Z as well as bend in X and Y, and align them with the deformed tangent. Check both extremes of a wag from the rear.
 - Keep render meshes and effects scoped to the Babylon scene. When adding a part, check that a character restart disposes its per-character material and texture and creates a fresh rig.
 
+## Animation inventory
+
+All four species share one rig interface. A gesture drives a normalized `progress` from 0 to 1. Walking, breathing, gaze, blinking and voice use independent inputs, so a dinosaur can look at the player and call during a stride.
+
+| Motion | Who uses it | Where to see it |
+| --- | --- | --- |
+| Breathing, small head movements and resting tail sway | Both ages, every species | Continuous in the maze and lineup. Choose Idle to isolate them. |
+| Blink | Both ages, every species | Automatic. The eyes close briefly on a species-timed cycle. |
+| Walk and turning stride | Both ages, every species | Walking companions and roaming adults. The lineup has Walk cycle and Turning stride. |
+| Scan, shift weight and pivot | Trailhead adults | Watch an adult pause or change direction. The Triceratops dips its frill, Stegosaurus sways, T. rex turns its chest, and Brachiosaurus sweeps its neck. |
+| Sit, tail wag and sneeze | Shared rig | Rescued companions perform these while the player pauses. In the lineup use Sit or Gestures. The sneeze has an anticipation, snap and recoil. |
+| Nose scratch and small arm swings | T. rex | The short arms swing during idle and walking. A hatchling can lift one hand to its nose when greeted or performing. |
+| Chirp and roar | Hatchling calls and adult roars | Hear call or Hear roar in the lineup. The jaw tracks each syllable. The adult roar also braces the legs and lifts the throat. |
+| Sniff the air | Both ages, every species | Trailhead, rescued companions and lineup. The neck lifts, then two unequal breaths flare the nostrils and expand the chest. About 2.35 seconds for hatchlings and 3 seconds for adults. |
+| Listening tilt | Both ages, every species | Trailhead, rescued companions and lineup. The eyes turn first, then the head tips, weight shifts, and the tail counterbalances. The individual seed determines the side. About 2.8 seconds for hatchlings and 3.6 seconds for adults. |
+
+Sniffing and listening use the muzzle, eyes, spine and tail, so they work on both bipeds and quadrupeds. Keep the Brachiosaurus neck swing smaller and transfer some lift to the skull. Check the sniff in profile and the listening tilt head-on. In rear view the tail should settle after the head. When extending either gesture, compare its first and last frames with Idle at the same time and gaze input. Test a companion mid-gesture by starting to run. It should start moving immediately while its expression eases out.
+
 ## Author and check motion
 
 `Hatchling.pose(time, options)` consumes elapsed seconds, gait time, walk amount, turn bank, gaze interest, gesture progress, and voice amplitude. The game owns movement and collision. The rig converts those inputs into poses.
@@ -61,4 +79,4 @@ python3 scripts/render_dinosaur_lineup.py \
   http://localhost:8000/3d/dinosaurs/ ./dinosaur-renders
 ```
 
-The capture script also accepts `--chromium` for an existing Chromium installation. It saves idle, two walking phases, turning, front call, sitting, rear gesture, and size-comparison images. A lineup URL ending in `#time=0.32` holds the pose at 0.32 seconds. Remove the fragment to resume motion. Use the same timestamps and camera angles before and after each edit. Review at least the front, side, and rear for each change. In the second pass, look for feet slipping or floating, abrupt hip or jaw motion, facial features clipping at the end of a gesture, and horns or plates overlapping on turns. Repeat the capture after fixing anything visible. The lineup is a measuring stage. Check gameplay spacing with the actual maze camera before changing character scale or hit testing.
+The capture script also accepts `--chromium` for an existing Chromium installation. It saves idle, two walking phases, turning, front call, sitting, rear gesture, two sniff phases, front and rear listening poses, and size-comparison images. A lineup URL ending in `#time=0.32` holds the pose at 0.32 seconds. Remove the fragment to resume motion. Use the same timestamps and camera angles before and after each edit. Review at least the front, side, and rear for each change. In the second pass, look for feet slipping or floating, abrupt hip or jaw motion, facial features clipping at the end of a gesture, and horns or plates overlapping on turns. Repeat the capture after fixing anything visible. The lineup is a measuring stage. Check gameplay spacing with the actual maze camera before changing character scale or hit testing.

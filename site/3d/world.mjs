@@ -1,7 +1,7 @@
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture.js'
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder.js'
 import { Hatchling } from './hatchling.mjs'
-import { voiceEnvelope, trailheadDinosaurs } from './hatchling-play.mjs'
+import { voiceEnvelope, trailheadDinosaurs, trailheadGesture } from './hatchling-play.mjs'
 import { Camera } from '@babylonjs/core/Cameras/camera.js'
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera.js'
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight.js'
@@ -813,10 +813,11 @@ export class World {
     if(Math.hypot(player.x-this.layout.spawn[0],player.z-this.layout.spawn[1])<18) {
       this.trailheadModels.forEach((model,index)=>{
         const actor=run.herd[index]
-        if(!actor.adult) { model.pose(time+index*.59); return }
+        const gesture=trailheadGesture(time,index,actor.adult)
+        if(!actor.adult) { model.pose(time+index*.59,gesture); return }
         model.root.position.set(actor.x,this.layout.groundAt(actor.x,actor.z),actor.z)
         model.root.rotation.y=actor.yaw
-        model.pose(actor.clock,{walk:actor.walk,gaitTime:actor.gait,interest:actor.gaze,pivot:actor.pivot})
+        model.pose(actor.clock,{walk:actor.walk,gaitTime:actor.gait,interest:actor.gaze,pivot:actor.pivot,...gesture})
       })
     }
     run.hatchlings.forEach((actor,index)=>{
@@ -832,6 +833,7 @@ export class World {
       }
       model.pose(actor.clock,{
         walk:actor.walk, gaitTime:actor.gaitClock, bank:actor.bank, action:actor.action,progress:(time-actor.actionAt)/actor.actionLength || 0,
+        gestureWeight:actor.gestureWeight,
         voice:voiceEnvelope(actor.call,time),interest:actor.interest,
       })
     })
