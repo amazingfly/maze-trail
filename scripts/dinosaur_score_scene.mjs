@@ -47,7 +47,7 @@ function idMaterial(hex) {
   return m
 }
 const tags=['#363636','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff'].map(idMaterial)
-let rig,meshes,materials,legPads,kind,adult
+let rig,meshes,materials,legPads,kind,adult,control
 function tag(mesh) {
   if(cues[kind][0].test(mesh.name)) return 1
   if(cues[kind][1].test(mesh.name) && (kind!=='rex'||rig.legs.some(l=>l.arm && mesh.isDescendantOf(l.shoulder)))) return 2
@@ -56,20 +56,27 @@ function tag(mesh) {
   if(['inner mouth','soft tongue','flexible mouth lining'].includes(mesh.name)) return 5
   return 0
 }
-async function select(key,isAdult) {
+async function select(key,isAdult,fixtureControl="normal") {
+  if(!cues[key]) throw new Error("Register the two identification cues for "+key)
+  control=fixtureControl
   rig?.root.dispose(false,true)
   kind=key;adult=isAdult
   rig=new Hatchling(scene,kind,271,{adult})
   rig.root.scaling.setAll(1) // Compare model-space size independent of the game world's 5× zoom.
+  rig.root.position.y=control==='floating'?.04:0
   meshes=rig.root.getChildMeshes()
   materials=meshes.map(m=>({original:m.material,colored:m.useVertexColors,id:tags[tag(m)]}))
   legPads=rig.legs.filter(l=>!l.arm).map(leg=>({leg,pad:leg.ankle.getChildMeshes().find(m=>m.name==='padded foot')}))
   await scene.whenReadyAsync()
 }
+function applyPose(time,options) {
+  if(control==='frozen') rig.pose(0)
+  else rig.pose(time,options)
+}
 function pose(action,p) {
   const walking=action==='walk'||action==='turn'
   const t=p*(walking?1/(species[kind].gait*(adult?.58:1)):gestureDuration(action,adult))
-  rig.pose(t,{action:action==='call'?(adult?'roar':''):walking||action==='idle'?'':action,progress:p,gaitTime:t,
+  applyPose(t,{action:action==='call'?(adult?'roar':''):walking||action==='idle'?'':action,progress:p,gaitTime:t,
     walk:walking?1:0,pivot:action==='turn'?.65:0,bank:action==='turn'?.7:0,
     voice:action==='call'?Math.sin(Math.PI*p)**2:0})
 }
@@ -115,7 +122,7 @@ function mechanics(actions) {
     }
     if((i===0||i===40) && !['walk','turn'].includes(action)){
       const a=snapshot()
-      rig.pose(p*gestureDuration(action,adult))
+      applyPose(p*gestureDuration(action,adult))
       const b=snapshot()
       for(let j=0;j<a.length;j++)endpoint=Math.max(endpoint,Math.abs(a[j]-b[j]))
     }

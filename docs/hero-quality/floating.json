@@ -1,0 +1,80 @@
+{
+  "version": "hero-v1",
+  "control": "floating",
+  "browser": "155.0.8059.39",
+  "seed": 271,
+  "tile": 192,
+  "packages": {
+    "Pillow": "11.3.0",
+    "numpy": "2.2.6",
+    "scipy": "1.16.1",
+    "playwright": "1.55.0"
+  },
+  "species": {
+    "rex": {
+      "total": 78.376,
+      "scores": {
+        "shape": 20.0,
+        "skin": 13.649,
+        "face": 18.103,
+        "rig": 8.0,
+        "motion": 13.624,
+        "readability": 5.0
+      },
+      "ages": {
+        "baby": {
+          "metrics": {
+            "primary": 0.20511187970000655,
+            "secondary": 0.04083305924668252,
+            "eyes": 0.0189259991006086,
+            "open_mouth": 0.09131946251677601,
+            "mouth_gain": 0.08576607787523678,
+            "chroma": 45.8863923323827,
+            "luminance": 63.880959999999995,
+            "cue_contrast": 23.048467985304086,
+            "connected": 1.0,
+            "contact": 0.040387601256370545,
+            "penetration": 0,
+            "endpoint": 8.57252763722393e-18,
+            "lift": 0.11700777113437652,
+            "motion_response": 0.8392159513260119
+          },
+          "scores": {
+            "shape": 20.0,
+            "skin": 14.728807722681143,
+            "face": 20.0,
+            "rig": 7.9999999999999964,
+            "motion": 13.392159513260118,
+            "readability": 5.0
+          }
+        },
+        "adult": {
+          "metrics": {
+            "primary": 0.20733772121451288,
+            "secondary": 0.03520916295785056,
+            "eyes": 0.006308210592440256,
+            "open_mouth": 0.11731481919575319,
+            "mouth_gain": 0.11167003976306226,
+            "chroma": 29.311647631854704,
+            "luminance": 54.357870000000005,
+            "cue_contrast": 21.97106620413172,
+            "connected": 1.0,
+            "contact": 0.040383593142032624,
+            "penetration": 0,
+            "endpoint": 0,
+            "lift": 0.10460889637470246,
+            "motion_response": 0.8855119695464186
+          },
+          "scores": {
+            "shape": 20.0,
+            "skin": 12.56932683178388,
+            "face": 16.205473728293505,
+            "rig": 8.0,
+            "motion": 13.855119695464186,
+            "readability": 5.0
+          }
+        }
+      }
+    }
+  }
+}

@@ -72,7 +72,7 @@ Move with WASD or the up and down arrow keys. Desktop play opens fullscreen and 
 
 The game code lives in `site/3d/`. Change materials and landmark models in `world.mjs`; collision and routing use the separate `layout.mjs`. The build bundles Babylon.js and selects WebGPU when it initializes successfully. It falls back to WebGL if WebGPU fails to start or the graphics device is lost. Add `?renderer=webgl` to force WebGL when testing. Babylon.js is pinned in `package-lock.json`, and the browser loads the bundled engine from the same site.
 
-For new dinosaur models, start with the [modeling, rigging and animation guide](docs/dinosaur-modeling.md). It includes measured body plans and a reproducible render comparison.
+For new dinosaur models, start with the [modeling, rigging and animation guide](docs/dinosaur-modeling.md). It includes measured body plans and a reproducible render comparison. The [ranked hero roster](docs/dinosaur-hero-roster.md) tracks the book assets and modeling backlog. The [scoring rubric](docs/dinosaur-scoring.md) includes the audit commands, evidence and results.
 
 ### 3D exploration
 

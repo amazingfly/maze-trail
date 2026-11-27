@@ -32,16 +32,21 @@ function shade(position, id, palette, underside) {
   const light=.86+.14*scales+.11*Math.sin(11*x-13*z)
   const phase=palette.patternPhase
   const band=Math.sin(z*(palette.kind==='rex'?38:25)+9*x+7*y+Math.sin(x*33)+phase)
-  const markings=palette.kind==='rex' ? Math.max(0,band-.44)*.73
+  const markings=palette.kind==='rex' ? Math.max(0,band-.35)*.87
     : palette.kind==='stego' ? Math.max(0,band-.58)*.45 : 0
   const color=Color3.Lerp(palette.skin,palette.shadow,clamp(mottle+markings))
   // Broad markings survive distance filtering; keep the fine scale relief in the texture.
   const dapple=Math.sin(58*z+phase+1.2*Math.sin(y*22))*Math.cos(59*y-12*x-phase)
   let pigment
-  if(palette.kind==='rex') pigment=.27*smooth((band+.36)/.39)*smooth((.5-band)/.45)
+  if(palette.kind==='rex') pigment=.45*smooth((band+.48)/.45)*smooth((.6-band)/.49)
   else if(palette.kind==='stego') pigment=.30*smooth((-band-.23)/.58)
   else pigment=(palette.kind==='longneck'?.55:.44)*smooth((dapple-.30)/.54)
   Color3.LerpToRef(color,palette.accent,pigment*(1-underside),color)
+  if(palette.muzzle) {
+    // Warm cheek markings fade into the olive crown and stop above the lip.
+    const cheek=smooth((.090-y)/.096)*(.36+.64*smooth((z+.06)/.19))
+    Color3.LerpToRef(color,palette.cream,cheek*.67,color)
+  }
   const belly=Color3.Lerp(color,palette.cream,clamp(underside))
   return [belly.r*light,belly.g*light,belly.b*light,1]
 }
@@ -315,7 +320,7 @@ export class Hatchling {
       [0,-.007,snout*1.18,headWidth*.69,.044],
       [0,-.010,snout*1.37,headWidth*.50,.029],
       [0,-.016,snout*1.45,.006,.009],
-    ],palette,seed,skinMat))
+    ],rex?{...palette,muzzle:true}:palette,seed,skinMat))
     solid('upper mouth seam',this.head,[0,-.055,snout*.70],[headWidth*.80,.013,snout*.68],lip)
     this.jaw=node('hinged lower jaw',scene,this.head,[0,-.049,-.028])
     hide('lower jaw',this.jaw,[0,-.026,snout*.84],[headWidth*.80,.034,snout*.82],.90)
@@ -364,7 +369,7 @@ export class Hatchling {
       solid('small eye glint',gaze,[.010,-.009,.024],[.0034,.0034,.002],shine)
       if (adult) globe.scaling.set(.70,.74,.84)
       const brow=hide('expressive brow',eye,[0,.034,.011],[.049,adult?.024:.016,.027])
-      brow.rotation.z=side*(adult?.34:.18)
+      brow.rotation.z=side*(adult?(rex?.23:.34):.18)
       const nostril=solid('nostril',this.head,[side*headWidth*.53,.014,snout*1.29],[.012,.007,.006],lip)
       this.eyes.push({globe,gaze,nostril,side,brow})
       if(rex)for(let i=0;i<(adult?6:4);i++){
@@ -412,9 +417,10 @@ export class Hatchling {
       ],null,seed,bone)
       sweep('nose horn',scene,this.head,[[0,.025,.153,.022,.020],[0,.072,.161,.012,.011],[0,.098,.166,.002,.002]],null,seed,bone)
     }
+    const armorPalette=anky ? {...palette,skin:rgb(adult?0x568d7b:0x6eb19c),
+      shadow:rgb(0x36615b),cream:rgb(0xabc69c),accent:rgb(0xc6d19a)} : null
     if(anky) {
       // Stagger keeled osteoderms over the shoulder and pelvic armor.
-      const shell=material('malachite armor',adult?0x447d70:0x57a290)
       const keel=material('sunlit armor keels',adult?0xaac38a:0xc4df9b)
       const mantle=hide('armored mantle',this.body,[0,torsoY+.030*mass,-.004],
         [.170*mass,.097*mass,.235*mass])
@@ -425,11 +431,13 @@ export class Hatchling {
         const surface=Math.sqrt(Math.max(.04,1-(x/ribSize[0])**2-(z/ribSize[2])**2))
         const y=torsoY+.015*mass+ribSize[1]*surface
         const size=mass*(1-.09*Math.abs(col)+.06*Math.cos(2.3*row+col))
-        const scale=solid('keeled back armor',this.body,[x,y,z],[.046*size,.022*size,.060*size],shell)
-        scale.rotation.z=-col*.20
-        const ridge=solid('armor ridge',scale,[0,.022*mass,0],[.012*mass,.015*mass,.038*mass],keel)
-        ridge.rotation.x=.12
-        scale.rotation.y=.09*Math.sin(row*3+col)
+        const scute=sweep('keeled back armor',scene,this.body,[
+          [0,-.004,-.061,.006,.004],[0,.001,-.038,.037,.012],
+          [0,.008,-.006,.049,.023],[0,.012,.024,.038,.026],[0,.001,.057,.008,.005],
+        ],armorPalette,seed+row,skinMat)
+        scute.position.set(x,y,z)
+        scute.scaling.setAll(size)
+        scute.rotation.set(.09*Math.cos(row+col),.09*Math.sin(row*3+col),-col*.20)
       }
       for(const side of [-1,1]) {
         sweep('cheek horn',scene,this.head,[
@@ -490,11 +498,17 @@ export class Hatchling {
       const z=-tailLength*.94
       const joint=node('tail club hinge',scene,this.tail,[0,.031,z])
       for(const side of [-1,1]) {
-        const club=solid('tail club',joint,[side*.036*mass,.005,-.026],
-          [.068*mass,.057*mass,.091*mass],crest)
-        club.rotation.y=side*.23
+        const club=sweep('tail club',scene,joint,[
+          [0,-.003,.059,.020,.023],[side*.020,.004,.029,.055,.044],
+          [side*.041,.004,-.016,.067,.054],[side*.043,.002,-.057,.061,.047],
+          [side*.032,0,-.089,.047,.035],[side*.022,-.001,-.108,.014,.014],
+        ],armorPalette,seed,skinMat)
+        club.scaling.setAll(mass)
         this.collisionMeshes.push(club)
-        solid('club crown',joint,[side*.035*mass,.049*mass,-.024],[.040,.016,.049],bone)
+        const boss=volume('club crown',scene,joint,[side*.041*mass,.045*mass,-.028*mass],
+          [.040*mass,.014*mass,.055*mass],armorPalette,seed+1)
+        boss.material=skinMat
+        boss.rotation.z=-side*.27
       }
       this.spikes.push({joint,restZ:z,back:.94})
     }
@@ -513,7 +527,7 @@ export class Hatchling {
       const jointHeight=arm?.397:rex?.287:long?.318:.237
       const femur=arm?.060:rex?.155:long?.168:.126
       const shin=arm?.050:rex?.149:long?.160:.123
-      const shoulder=node(arm?'shoulder':'upper leg',scene,this.body,[side*(arm?.094:.097),jointHeight,front?.121:-.103])
+      const shoulder=node(arm?'shoulder':'upper leg',scene,this.body,[side*(arm?(adult?.116:.105):.097),jointHeight,front?.121:-.103])
       const knee=node(arm?'wrist':'knee',scene,shoulder,[side*(arm?.011:0),-femur,arm?.020:.007])
       const ankle=node(arm?'hand':'ankle',scene,knee,[0,-shin,arm?.021:.010])
       const width=(arm?.027:front?.042:.057)*(adult?1.15:1)
@@ -523,7 +537,7 @@ export class Hatchling {
         hide(arm?'hand':'padded foot',ankle,[0,-.003,.022],[width*.93,arm?.020:.030,arm?.037:.055]),
       )
       for(let j=0;j<(arm?2:3);j++){
-        const x=(j-(arm?.5:1))*width*.53
+        const x=(j-(arm?.5:1))*width*(arm?.86:.53)
         solid('round toe',ankle,[x,-.009,arm?.050:.061],[width*.30,arm?.013:.017,.019],bone)
       }
       this.legs.push({shoulder,knee,ankle,side,front,arm,

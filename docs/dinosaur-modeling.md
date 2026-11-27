@@ -13,6 +13,7 @@ These are actual hatchling dimensions in local model units. The ribcage is cente
 | Triceratops | .288 | .138 / .125 / .216 | .113 / .128 | .126 / .123 | .335 |
 | Stegosaurus | .288 | .138 / .125 / .216 | .092 / .110 | .126 / .123 | .473 |
 | T. rex | .355 | .123 / .125 / .205 | .121 / .150 | .155 / .149 | .535 |
+| Ankylosaurus | .260 | .180 / .114 / .250 | .109 / .119 | .126 / .123 | .490 |
 | Brachiosaurus | .355 | .138 / .125 / .216 | .087 / .119 | .168 / .160 | .401 |
 
 For example, start a new long-necked quadruped with the Brachiosaurus trunk and legs. Put the neck pivot at `[0, torsoY + .045, .136]`. Place the hatchling skull at `[0, .344, .124]` relative to that pivot. Sweep the neck through intermediate rings up to the skull socket. Change the neck endpoint and ring centers together. Freeze a listening tilt and a yawn before adding markings. A gap at the skull on either pose means the terminal ring and skull socket need more overlap.
@@ -36,6 +37,7 @@ For a new species, trace the closest existing anatomy through both the construct
 | Triceratops frill and horns | Put the broad frill and inset on the skull behind the eyes, then add paired brow horns and a nose horn as tapering sweeps. Check their roots with the head pitched down. |
 | Stegosaurus plates and spikes | Mount seven beveled plates on the body, alternating sides along Z. Attach each tail spike to a pivot sampled along the deforming tail. Review the plates edge-on and the spikes from behind. |
 | T. rex snout and hands | Widen the middle skull rings and extend the snout. Place upper teeth under the skull, then build the two short free arms under the chest. Check tooth clearance with the jaw open and hand reach with the muzzle lowered. |
+| Ankylosaurus armor and club | Spread five staggered rows of keeled scutes over the domed trunk. Keep the last third of the tail thick enough to meet the paired bony lobes. Parent both lobes to a hinge at 94% of tail length and update it with the same curve and tangent as a stegosaur spike. Use the lobes as moving collision volumes. |
 | Brachiosaurus neck | Place the thickest neck ring inside the shoulder, curve the narrowing rings upward and forward, and parent the dorsal neck scales to the neck. The adult skull pivot rises to .454 above the neck base. |
 
 For repeatable skin, use `shade` for broad pigment differences and `scaleTexture(scene, seed)` for fine texture. The latter draws a staggered 16 × 16 field of jittered pebbles into a 128 × 128 tile, including copies at the edges for wrapping. Keep the same seed while tuning anatomy or comparing materials. Change the seed afterward to verify that individuals vary while the species markings still read.
@@ -62,7 +64,7 @@ The rig uses Babylon `TransformNode` pivots and parented meshes. Model in each p
 | --- | --- | --- |
 | Body | Attach paired shoulders and hips at X ±.097, forelimb Z .121 and hindlimb Z −.103. Place the joint at Y .237 for the short quadrupeds, .318 for Brachiosaurus, or .287 for the T. rex hips. | Rotate the body and check that the feet can still reach the floor at the high hip. |
 | Upper limb → lower limb → ankle | Put the knee at `[0, -femur, .007]` and ankle at `[0, -shin, .010]` for a load-bearing leg. Parent the pad and toes to the ankle. Keep the pad origin .003 below the ankle and its vertical radius .030. The IK target is consequently .033 above the floor. | If changing foot thickness, update the ankle target. Include socket offsets when calculating rest angles and lengths. |
-| T. rex shoulder → wrist → hand | Start the short arm at `[±.094, .397, .121]`. Use upper and lower vertical offsets .060 and .050. Set the forelimb's `arm` flag and use the separate arm rotations in `pose`. | Scrub a nose scratch in profile. The hand should meet the muzzle as the head dips. |
+| T. rex shoulder → wrist → hand | Start the short arm at `[±.105, .397, .121]` for hatchlings and X ±.116 for adults. Use upper and lower vertical offsets .060 and .050. Set the forelimb's `arm` flag and use the separate arm rotations in `pose`. | Scrub a nose scratch in profile. The hand should meet the muzzle as the head dips. |
 | Skull → jaw | Set the hinge to `[0, -.049, -.028]` in skull space. Build the lower muzzle forward of it. Store the throat's rest rim so each jaw angle can be evaluated independently. | Open the jaw for a call. The tongue should travel with it and the cheek lining should bridge the opening. |
 | Skull → eye socket → blink pivot → gaze pivot | Put the brow on the socket and the eye white on the blink pivot. Put iris, pupil and both glints together on the gaze pivot. Keep the nostril mesh on the muzzle. | Freeze a blink and then a listening glance. The glints should stay on the iris through both movements. |
 | Tail base | Place it at `[0, torsoY + .003, -.158]`. Build 14 tapering rings, save a copy of the rest vertices, and apply each frame's bend to that copy. | Check the Stegosaurus spikes at both wag extremes. |
@@ -121,7 +123,7 @@ python3 scripts/build_site.py --output "$review_dir"
 python3 -m http.server 8000 --directory "$review_dir"
 ```
 
-Open `http://localhost:8000/3d/dinosaurs/`. The stage shows the four species together and supports hatchlings, adults, and a scale comparison. Select each view and motion. Use **Hear call** or **Hear roar** to test one species. The sound button also drives the selected animal's jaw. In the maze, separately test a greeting and a recruited hatchling turning a corner.
+Open `http://localhost:8000/3d/dinosaurs/`. The stage shows the five species together and supports hatchlings, adults, and a scale comparison. Select each view and motion. Use **Hear call** or **Hear roar** to test one species. The sound button also drives the selected animal's jaw. In the maze, separately test a greeting and a recruited hatchling turning a corner.
 
 To save the lineup sheets, run this in a second terminal with Pillow and Playwright installed.
 
@@ -151,3 +153,5 @@ Open its `dinosaur-reference.jpg` alongside the checked-in sheet. Both use the s
 | Idle looks correct but an interrupted gesture snaps | Pose at progress 0 and 1 against Idle at the same time, then gesture weight during a sprint |
 
 The capture script also accepts `--chromium` for an existing Chromium installation. It saves idle, two walking phases, turning, front call, sitting, rear gesture, sniffing, listening, ground scratch, yawn, and size-comparison images. A lineup URL ending in `#time=0.32` holds the pose at 0.32 seconds. Remove the fragment to resume motion. Use the same timestamps and camera angles before and after each edit. Review at least the front, side, and rear for each change. In the second pass, look for feet slipping or floating, abrupt hip or jaw motion, facial features clipping at the end of a gesture, and horns or plates overlapping on turns. Repeat the capture after fixing anything visible. The lineup is a measuring stage. Check gameplay spacing with the actual maze camera before changing character scale or hit testing.
+
+For a scored comparison, use the [hero-model rubric and audit results](dinosaur-scoring.md) and the [ranked Dinosaur Adventures asset roster](dinosaur-hero-roster.md).

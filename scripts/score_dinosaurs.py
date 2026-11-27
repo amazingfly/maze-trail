@@ -3,6 +3,7 @@
 import argparse
 import base64
 from io import BytesIO
+import hashlib
 import json
 from importlib.metadata import version
 from pathlib import Path
@@ -92,6 +93,8 @@ def run():
     parser.add_argument('destination', type=Path)
     parser.add_argument('--chromium', help='Chromium executable, e.g. /usr/bin/google-chrome')
     parser.add_argument('--species', nargs='+', help='Audit a subset using the same rubric')
+    parser.add_argument('--control', choices=['normal', 'frozen', 'floating'], default='normal',
+                        help='Apply a known fault in the offline fixture to test score sensitivity')
     args = parser.parse_args()
     args.destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp, sync_playwright() as pw:
@@ -107,8 +110,11 @@ def run():
         selected = args.species or available
         if set(selected)-set(available):
             parser.error(f'Available species: {available}')
-        report = dict(version=VERSION, browser=browser.version, seed=271, tile=SIZE,
+        report = dict(version=VERSION, control=args.control, browser=browser.version, seed=271, tile=SIZE,
                       packages={k:version(k) for k in ['Pillow', 'numpy', 'scipy', 'playwright']}, species={})
+        report['source_sha256'] = {name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in (
+            'site/3d/hatchling.mjs', 'site/3d/hatchling-play.mjs', 'scripts/dinosaur_score_scene.mjs',
+            'scripts/score_dinosaurs.py', 'package-lock.json')}
         for kind in selected:
             ages = {}
             poses = page.evaluate('audit.poses') + (['scratch'] if kind == 'rex' else [])
@@ -116,7 +122,7 @@ def run():
                 age = 'adult' if adult else 'baby'
                 folder = args.destination/kind/age
                 folder.mkdir(parents=True, exist_ok=True)
-                page.evaluate('([kind,adult])=>audit.select(kind,adult)', [kind, adult])
+                page.evaluate('(args)=>audit.select(...args)', [kind, adult, args.control])
                 strips = {}
                 overview = Image.new('RGB', (SIZE*4, len(poses)*(SIZE//2+16)), '#18312b')
                 pen = ImageDraw.Draw(overview)

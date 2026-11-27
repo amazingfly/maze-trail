@@ -126,7 +126,7 @@ try {
       model.root.rotation.y=headings[angle.value]
     }
     const aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight)
-    const halfWidth=scale*(narrow?1.38:columns*.595+.17)
+    const halfWidth=scale*(narrow?1.38:columns*.595+.40)
     const halfHeight=Math.max(halfWidth/aspect,scale*(narrow?.58+rows*.33:.65))
     camera.orthoTop=halfHeight
     camera.orthoBottom=-halfHeight

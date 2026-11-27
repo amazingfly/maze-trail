@@ -34,3 +34,33 @@ Let U(x) clamp to [0,1]. Pixel-area fractions use the model's visible alpha foot
 | Small-screen readability | 5 | Downsample each silhouette to 48×48 with area averaging, threshold at 100/255 and find eight-connected components. Take the largest component's share of foreground pixels. A clipped full-size frame or empty thumbnail gets zero. Average over all beauty frames and multiply by five. |
 
 The scripts specify thresholds, pixel masks and the exact mesh names. Keep both ages' raw metrics and the decomposed score in `scores.json`; use the image strips to diagnose a weak category before editing a model. Re-run the entire roster for comparison after changing a fixture, weight, camera, seed or cue definition.
+
+## First audit and improvement
+
+The baseline is commit `ff31216`. Keep the full-precision measurements when comparing versions. On Chrome 155.0.8059.39 with SwiftShader, two final full-roster runs produced identical per-age metrics. The isolated T. rex rerun also matched its full-roster result. The calibrated camera includes the entire club in adult side views. [Baseline data](hero-quality/before.json) · [Final data, tool versions and source hashes](hero-quality/final.json)
+
+| Hero | Before /100 | Final /100 | Final place |
+| --- | ---: | ---: | ---: |
+| Triceratops | 92.289 | 92.289 | 1 |
+| Ankylosaurus | 91.783 | 91.099 | 2 |
+| T. rex | 85.779 | 89.410 | 3 |
+| Stegosaurus | 86.894 | 86.894 | 4 |
+| Brachiosaurus | 86.793 | 86.793 | 5 |
+
+The initially lowest model was T. rex. Its short arms disappeared into its olive chest, particularly on the adult. Moving the shoulder sockets outward and spreading the two fingers increased the visible adult arm fraction from 1.61% to 3.45%. A warmer muzzle, stronger flank stripes and a slightly softer adult brow improved separation at maze distance. The skin category rose from 12.045 to 13.601 and the shape category from 17.845 to 19.940. Rig points stayed at 19.535. [Before and after, same camera and pose](hero-quality/rex-comparison.jpg)
+
+Ankylosaurus received a separate art pass. The rounded tiles and bright club in the first build looked like separate beads. The release uses overlapping, tapered, keeled armor and a textured two-lobed club with a thickened handle. This reduced its total by 0.684, largely by reducing accent contrast. We retained the revision because the armor and club read as parts of the animal. [Hatchling and adult renders](hero-quality/ankylosaurus.jpg)
+
+## What the score measures well, and what to change next
+
+The two control runs below alter pose playback only in the offline fixture. Repeat the subset command with `--control frozen` or `--control floating` and a separate output directory.
+
+| T. rex control | Total | Evidence |
+| --- | ---: | --- |
+| Production rig | 89.410 | Motion 13.405/15 and rig 19.535/20. |
+| Freeze all joints at idle | 66.072 | Motion drops to 0 and face falls to 7.531 because the jaw stays closed. Rig increases to 20 because stationary feet and endpoints are perfectly consistent. |
+| Raise the entire rig .04 units | 78.376 | Rig falls to 8 because supporting pads visibly float. Tiny changes in projection slightly increase some appearance measurements. |
+
+The frozen model demonstrates why a high total alone is a poor release criterion. For a v2 rubric, report an explicit locomotion/grounding result alongside the total. Add stance-foot horizontal drift and a timed audio-to-jaw alignment check. The current tests measure vertical pad contact, sampled pose transitions and mouth visibility. [Frozen measurements](hero-quality/frozen.json) · [Floating measurements](hero-quality/floating.json)
+
+The shape and color scores favor large, contrasting features. The ankylosaur armor revision and the low cue contrast of the naturally uniform longneck expose that bias. Before reweighting those categories, run a blinded picture-matching exercise using shuffled, unlabeled silhouettes from several angles. Record child recognition accuracy and which species are confused. Also sample more coat seeds, rear views and dim maze lighting. Keep v1 scores comparable until a replacement has been calibrated across the full roster. The 0.101-point gap between Stegosaurus and Brachiosaurus is reproducible on this fixture but gives little basis for preferring one's overall art.

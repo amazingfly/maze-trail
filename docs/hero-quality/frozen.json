@@ -1,0 +1,80 @@
+{
+  "version": "hero-v1",
+  "control": "frozen",
+  "browser": "155.0.8059.39",
+  "seed": 271,
+  "tile": 192,
+  "packages": {
+    "Pillow": "11.3.0",
+    "numpy": "2.2.6",
+    "scipy": "1.16.1",
+    "playwright": "1.55.0"
+  },
+  "species": {
+    "rex": {
+      "total": 66.072,
+      "scores": {
+        "shape": 19.94,
+        "skin": 13.601,
+        "face": 7.531,
+        "rig": 20.0,
+        "motion": 0.0,
+        "readability": 5.0
+      },
+      "ages": {
+        "baby": {
+          "metrics": {
+            "primary": 0.2044777297635707,
+            "secondary": 0.04017626389487314,
+            "eyes": 0.01930041519627506,
+            "open_mouth": 0.005914436327190163,
+            "mouth_gain": 0,
+            "chroma": 45.84794507101462,
+            "luminance": 63.61808000000003,
+            "cue_contrast": 22.689317904088902,
+            "connected": 1.0,
+            "contact": 6.705522540007003e-09,
+            "penetration": 0,
+            "endpoint": 0,
+            "lift": 6.705522540007003e-09,
+            "motion_response": 0.0
+          },
+          "scores": {
+            "shape": 20.0,
+            "skin": 14.68500166081843,
+            "face": 9.47860908179754,
+            "rig": 19.9999977009637,
+            "motion": 4.789658957147858e-07,
+            "readability": 5.0
+          }
+        },
+        "adult": {
+          "metrics": {
+            "primary": 0.2091071674740478,
+            "secondary": 0.034477709016747835,
+            "eyes": 0.005786974362094883,
+            "open_mouth": 0.00689809492552895,
+            "mouth_gain": 0,
+            "chroma": 29.17956863096525,
+            "luminance": 54.14918,
+            "cue_contrast": 21.881488731293942,
+            "connected": 1.0,
+            "contact": 6.705522540007003e-09,
+            "penetration": 0,
+            "endpoint": 0,
+            "lift": 6.705522540007003e-09,
+            "motion_response": 0.0
+          },
+          "scores": {
+            "shape": 19.880619203828076,
+            "skin": 12.516284471506262,
+            "face": 5.5825066394454925,
+            "rig": 19.9999977009637,
+            "motion": 4.789658957147858e-07,
+            "readability": 5.0
+          }
+        }
+      }
+    }
+  }
+}
