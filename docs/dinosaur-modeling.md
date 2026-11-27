@@ -37,6 +37,8 @@ Check planted pads numerically when changing leg lengths or body bob. During the
 
 Review a call head-on at maximum opening. Anchor the top edge of the U-shaped throat lining to the skull and rotate the bottom edge with the jaw. Check that the lining connects the upper and lower surfaces, and the tongue should read as flesh under both scene lights.
 
+The trailhead adults share the same rig as the lineup. Their short walks and pauses are driven by `trailhead-motion.mjs`. Pass gait time, walking effort, gaze and pivot effort into the pose. When turning in place, the feet on opposite sides step in opposite directions. Inspect the neck leading the turn, chest and hips shifting weight, and tail following through. Verify the collision shapes after moving the root.
+
 ## Reproduce the render review
 
 Build from the repository root and preview it locally.

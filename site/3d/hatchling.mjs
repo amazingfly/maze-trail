@@ -501,7 +501,7 @@ export class Hatchling {
     })
   }
 
-  pose(time,{walk=0,gaitTime=time,action='',progress=0,voice=0,interest=0,bank=0}={}) {
+  pose(time,{walk=0,gaitTime=time,action='',progress=0,voice=0,interest=0,bank=0,pivot=0}={}) {
     const t=time
     const adult=this.adult
     const gait=gaitTime*TAU*this.type.gait*(adult?.58:1)+.19*Math.sin(gaitTime*2.1)
@@ -520,6 +520,34 @@ export class Hatchling {
     this.body.rotation.x=sit*-.14+walk*.038*Math.sin(gait*2)-.07*shake
     this.body.rotation.y=wag*.065*Math.sin(progress*TAU*2.45+.8)
     this.neck.rotation.x=.026*breath+walk*.071*Math.sin(gait+.7)-.20*sit+.31*scratch-.17*roar
+    // Let the neck lead a scan, then let the chest and pelvis take up the turn.
+    // During a stride the pelvis rolls toward the supporting leg.
+    const survey=adult ? (1-act)*(.52*Math.sin(t*.56)+.48*interest) : 0
+    if(adult) {
+      const load=Math.sin(gait)*walk
+      const shift=Math.sin(t*.74)*.006*(1-walk)
+      this.body.position.x=shift+.010*load
+      this.body.rotation.z+=shift*3.7+.028*load
+      this.body.rotation.y+=.14*survey+.046*Math.sin(gait+.5)*walk
+      this.body.rotation.x+=.028*Math.sin(t*.78)*(1-walk)
+      this.neck.rotation.y=.23*survey+.074*pivot
+      this.neck.rotation.x+=(this.kind==='longneck'?.12:.065)*Math.sin(t*.63+.6)*(1-walk)
+      const pause=(1-walk)*(1-act)
+      const dip=smooth((Math.sin(t*.70)-.16)/.84)*pause
+      if(this.kind==='trike') {
+        this.neck.rotation.x+=.32*dip
+        this.body.rotation.x+=.062*dip
+      } else if(this.kind==='stego') {
+        this.body.rotation.z+=.058*survey
+        this.neck.rotation.y+=.11*survey
+      } else if(this.kind==='longneck') {
+        this.neck.rotation.y+=.20*survey
+        this.neck.rotation.z=.095*survey
+      } else {
+        this.body.rotation.y+=.085*survey
+        this.neck.rotation.x-=.10*dip
+      }
+    }
     this.head.position.set(0,this.headRest[1]-.028*scratch,this.headRest[2]-.035*scratch+.022*voice+.015*roar)
     const sneezeSnap=Math.exp(-((progress-.47)**2)/.003)
     const sneezeRecoil=Math.exp(-((progress-.58)**2)/.008)
@@ -542,7 +570,7 @@ export class Hatchling {
     const blinkTick=(t+.27)%(3.37+this.type.gait*.7)
     const blink=1-.91*Math.sin(Math.PI*clamp(blinkTick/.17))
     for(const eye of this.eyes) eye.scaling.y=blink*(adult?.74:1)*(1-.35*shake-.17*roar)
-    const tailWave=(.054+.07*walk)*Math.sin(t*3.9)+wag*.13*Math.sin(progress*TAU*2.45)
+    const tailWave=(.054+.07*walk)*Math.sin(adult?t*1.8:t*3.9)-.050*survey-.072*pivot+wag*.13*Math.sin(progress*TAU*2.45)
       -bank*.11*walk
     const rearLift=.013*breath+.036*walk*Math.sin(gait+.4)-.046*sit+.046*roar
     for(let i=0;i<this.tailRest.length;i+=3) {
@@ -585,7 +613,8 @@ export class Hatchling {
         ankle.rotation.x=.12*Math.sin(t*4.2+side)+reach*.71
         continue
       }
-      const targetZ=forward+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
+      const footTravel=forward*(1-Math.abs(pivot))-forward*side*pivot
+      const targetZ=footTravel+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
       const hip=shoulder.position
       // Solve in the limb plane for the requested sole height in root space.
       const ankleHeight=.033+lift

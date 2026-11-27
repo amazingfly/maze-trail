@@ -1,3 +1,4 @@
+import { advanceTrailhead, trailheadHerd } from './trailhead-motion.mjs'
 import { dinosaurContact, dinosaurJumpLimit, slidePlayer } from './movement.mjs'
 import { species, findHatchlings, walkHatchlings, targetHatchling, callHatchling, recruitHatchling } from './hatchling-play.mjs'
 import { Layout } from './layout.mjs'
@@ -204,6 +205,7 @@ function resetPlayer() {
     prepareMap()
   }
   run=newExpedition(layout)
+  run.herd=trailheadHerd(world.placements)
   run.hatchlings=findHatchlings(layout,selection)
   byId('hatchling-count').textContent='0/'+run.hatchlings.length
   world.setExpedition(run)
@@ -626,6 +628,7 @@ function tick(time) {
   const speed=Math.hypot(movedX,movedZ)/Math.max(.001,dt)
   player.travelSpeed=(player.travelSpeed ?? 0)+(speed-(player.travelSpeed ?? 0))*Math.min(1,dt*7)
   if(speed>.12) player.travelYaw=Math.atan2(movedX,movedZ)
+  advanceTrailhead(run.herd,layout,player,dt)
   walkHatchlings(run.hatchlings,player,run.time,dt,layout,audio)
   paint()
   frame = requestAnimationFrame(tick)
@@ -816,7 +819,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=15'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=17'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()

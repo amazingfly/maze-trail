@@ -349,7 +349,7 @@ function scenery(scene, layout) {
   return terrain
 }
 
-function displayAtTrailhead(scene,layout) {
+function displayAtTrailhead(scene,layout,placements) {
   const markers=[]
   for(const distance of [1.18,2.53,4.36,6.06,8.0]) for(const side of [-1,1]) {
     const [x,z]=layout.trailheadPoint(distance,side*.66)
@@ -358,7 +358,7 @@ function displayAtTrailhead(scene,layout) {
   const beacon=surface(scene,'turquoise trail markers',0x54d5cf,.37)
   addBatch(scene,'turquoise trail markers',CreateCylinder,
     {diameter:1,height:1,tessellation:6},markers,0x54d5cf,beacon)
-  return trailheadDinosaurs(layout).map((actor,index)=>{
+  return placements.map((actor,index)=>{
     const model=new Hatchling(scene,actor.kind,layout.data.centers.length+index,{adult:actor.adult})
     model.root.position.set(actor.x,layout.groundAt(actor.x,actor.z),actor.z)
     model.root.rotation.y=actor.yaw
@@ -489,7 +489,8 @@ export class World {
     this.blastRing=this.blastCore=null
     this.bombVisual=null
     this.heldBomb=null
-    this.trailheadModels=displayAtTrailhead(scene,layout)
+    this.placements=trailheadDinosaurs(layout)
+    this.trailheadModels=displayAtTrailhead(scene,layout,this.placements)
     gateway(scene, layout.data.openings[0], colors.entry, false)
     gateway(scene, layout.data.openings[1], colors.exit, true)
 
@@ -803,7 +804,13 @@ export class World {
     if(!run) return
     const time=run.time
     if(Math.hypot(player.x-this.layout.spawn[0],player.z-this.layout.spawn[1])<18) {
-      this.trailheadModels.forEach((model,index)=>model.pose(time+index*.59))
+      this.trailheadModels.forEach((model,index)=>{
+        const actor=run.herd[index]
+        if(!actor.adult) { model.pose(time+index*.59); return }
+        model.root.position.set(actor.x,this.layout.groundAt(actor.x,actor.z),actor.z)
+        model.root.rotation.y=actor.yaw
+        model.pose(actor.clock,{walk:actor.walk,gaitTime:actor.gait,interest:actor.gaze,pivot:actor.pivot})
+      })
     }
     run.hatchlings.forEach((actor,index)=>{
       const model=this.hatchlings[index]
