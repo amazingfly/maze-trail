@@ -72,6 +72,8 @@ Move with WASD or the up and down arrow keys. Desktop play opens fullscreen and 
 
 The game code lives in `site/3d/`. Change materials and landmark models in `world.mjs`; collision and routing use the separate `layout.mjs`. The build bundles Babylon.js and selects WebGPU when it initializes successfully. It falls back to WebGL if WebGPU fails to start or the graphics device is lost. Add `?renderer=webgl` to force WebGL when testing. Babylon.js is pinned in `package-lock.json`, and the browser loads the bundled engine from the same site.
 
+For new dinosaur models, start with the [modeling, rigging and animation guide](docs/dinosaur-modeling.md). It includes measured body plans and a reproducible render comparison.
+
 ### 3D exploration
 
 Press Space to jump. Black crystals supply charges. B equips or puts one away, and F or a click while aiming places it. On touch screens, use **Jump** and aim at a nearby wall before tapping **Bomb**. The pause menu has separate music and effects sliders. Crystal powers last for the displayed number of seconds of play.

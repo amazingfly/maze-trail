@@ -7,19 +7,26 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import sync_playwright
 
+# Keep these samples fixed when adding other poses to the full review.
+IDLE = ('three', 'idle', .8, 'Three-quarter · Idle')
+STRIDE = ('side', 'walk', .32, 'Side · Walk at 0.32 s')
+CALL = ('front', 'call', 1.48, 'Front · Calling')
+REACH = ('side', 'scuff', .70, 'Side · Foot reaches')
+REFERENCE_VIEWS = (IDLE, STRIDE, CALL, REACH)
+
 VIEWS = (
-    ('three', 'idle', .8, 'Three-quarter · Idle'),
-    ('side', 'walk', .32, 'Side · Walk at 0.32 s'),
+    IDLE,
+    STRIDE,
     ('side', 'walk', .49, 'Side · Walk at 0.49 s'),
     ('three', 'turn', .9, 'Three-quarter · Turning stride'),
-    ('front', 'call', 1.48, 'Front · Calling'),
+    CALL,
     ('side', 'sit', 1.55, 'Side · Sitting'),
     ('rear', 'gesture', 1.7, 'Rear · Gestures'),
     ('side', 'sniff', .77, 'Side · First sniff'),
     ('three', 'sniff', 1.53, 'Three-quarter · Second sniff'),
     ('front', 'listen', 1.24, 'Front · Listening tilt'),
     ('rear', 'listen', 1.72, 'Rear · Tail counterbalance'),
-    ('side', 'scuff', .70, 'Side · Foot reaches'),
+    REACH,
     ('three', 'scuff', 1.38, 'Three-quarter · Ground scratch'),
     ('front', 'yawn', 1.66, 'Front · Yawn'),
     ('side', 'yawn', 2.59, 'Side · Exhale'),
@@ -57,6 +64,8 @@ def main():
     parser.add_argument('url', help='Full URL of the dinosaur lineup')
     parser.add_argument('destination', type=Path)
     parser.add_argument('--chromium', help='Path to a local Chromium executable')
+    parser.add_argument('--reference', action='store_true',
+                        help='Save one side-by-side reference sheet for a first model review')
     args = parser.parse_args()
     args.destination.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as playwright:
@@ -69,16 +78,25 @@ def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.goto(args.url)
         page.locator('#sound:enabled').wait_for(timeout=20000)
-        for age in ['baby', 'adult']:
-            views = [
-                (capture(page, age, angle, pose, seconds),
-                 'Front · Roaring' if age == 'adult' and pose == 'call' else title)
-                for angle, pose, seconds, title in VIEWS
-            ]
-            save_sheet(views, args.destination / f'{age}-poses.jpg')
-        capture(page, 'comparison', 'three', 'idle', .8).save(
-            args.destination / 'scale-comparison.jpg', quality=93
-        )
+        if args.reference:
+            views = []
+            for angle, pose, seconds, title in REFERENCE_VIEWS:
+                for age in ('baby', 'adult'):
+                    caption = 'Front · Roaring' if age == 'adult' and pose == 'call' else title
+                    label = 'Hatchlings' if age == 'baby' else 'Adults'
+                    views.append((capture(page, age, angle, pose, seconds), f'{label} · {caption}'))
+            save_sheet(views, args.destination / 'dinosaur-reference.jpg')
+        else:
+            for age in ['baby', 'adult']:
+                views = [
+                    (capture(page, age, angle, pose, seconds),
+                     'Front · Roaring' if age == 'adult' and pose == 'call' else title)
+                    for angle, pose, seconds, title in VIEWS
+                ]
+                save_sheet(views, args.destination / f'{age}-poses.jpg')
+            capture(page, 'comparison', 'three', 'idle', .8).save(
+                args.destination / 'scale-comparison.jpg', quality=93
+            )
         browser.close()
         if errors:
             raise RuntimeError(errors)
