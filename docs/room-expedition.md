@@ -2,7 +2,15 @@
 
 Room Expedition uses an Android browser's WebXR immersive AR session. On supported Android devices, Chrome gets six-degree-of-freedom tracking and camera passthrough from ARCore. The session requires CPU depth and a DOM overlay. A phone that reports immersive AR opens Room Expedition from the main 3D link. The room page has a maze fallback, and printed page links open their original maze.
 
-Start in a lit room and sweep the floor, ceiling and walls while moving the phone slowly. Look at a black crystal and tap to collect it, or approach it on a clear floor. Aim at a scanned wall and tap **Blast wall**. If the far side has been surveyed, the window shows its reconstructed surfaces from the current viewing position. An unscanned far side stays misty until it is scanned via a real doorway. Select **Meadow view** before blasting an exterior wall to reveal the outdoor herd. The browser cannot identify the far side of a previously unseen wall from its depth image. The blast, opening and rubble are game graphics over the actual wall.
+Start in a lit room and sweep the floor, ceiling and walls while moving the phone slowly. Look at a black crystal and press **Collect crystal**, or approach it on a clear floor. Aim at a scanned wall and tap **Blast wall**. If the far side has been surveyed, the window shows its reconstructed surfaces from the current viewing position. An unscanned far side stays misty until it is scanned via a real doorway. Select **Meadow view** before blasting an exterior wall to reveal the outdoor herd. The browser cannot identify the far side of a previously unseen wall from its depth image. The blast, opening and rubble are game graphics over the actual wall.
+
+## Pocket dinosaurs
+
+Once the room is enclosed, look near the floor. Feathered teal raptors wander in, call, crouch and spring toward the shield. Gold-domed pachycephalosaurs crack a scanned wall, push through a temporary burrow and charge head-first. A contracting amber ring gives time to shoot. Only one dinosaur winds up at a time. A hit pulses the edge of the screen red. Exploration continues after a hit.
+
+Tap anywhere near a visible dinosaur to fire the phaser. Aim assist accepts about 33 degrees of error, favors the dinosaur closest to the tap direction and ignores targets hidden by scanned obstacles. A successful shot collapses the silhouette into crystal sparks and increments the star counter. The speaker button remembers the sound setting on this browser. All nine encounter cues are synthesized locally, with separate voices for each species and camera-relative stereo placement.
+
+The animals follow the connected, observed floor. A broken wall window remains a physical barrier. Encounters pause when tracking, recent depth or enclosure validation is lost. At most three indoor dinosaurs are active. If the map has no suitable wall for a burrow, another raptor can appear on the floor.
 
 ## How mapping works
 
@@ -18,3 +26,30 @@ All room geometry is held in the page's memory for the current session. Raw came
 Run `node scripts/test_room_map.mjs` from the repository root. The test derives synthetic perspective depth for a closed room, a misregistered wall, a door that opens and an adjoining room. It uses the same unprojection, surface fusion and enclosure validation as the game.
 
 On a physical compatible phone, test camera permission, a complete sweep and the difference between a closed and newly opened door. Check that the reticle and crystals stay attached to the scene while walking and that opening an exterior view shows parallax on a sideways step. Chrome's support for the chosen depth features can only be confirmed when an immersive session is requested.
+
+## Encounter review and repeatable tests
+
+| Pass | What the test or render exposed | Change |
+| --- | --- | --- |
+| 1 | The original session test ended at enclosure, and a page screenshot captured only the controls. | Add a framebuffer capture and exercise indoor spawning, warnings, hits and touch shooting after the scan. |
+| 2 | Front and side renders showed a segmented tail, a cap-like skull and a cropped leap. | Taper the tail continuously, blend the dome into the skull and frame the warning separately from the leap. |
+| 3 | A head-on image hid the burrow behind the animal. A single-room simulation missed disconnected floor. | Render the breach from the side, animate the emerging body and debris, and route over connected floor with a single attacker winding up at a time. |
+| 4 | The phaser tail was brief and the stereo direction was reversed for a right-handed XR camera. | Extend the descending phaser and species-specific calls. Render isolated stereo cues and test panning after a half-turn. |
+| 5 | The phone-height capture hid the raptor’s eyes. The charge counter wrapped to its own row. | Raise its gaze, slim the brow, move inventory into the scanner and check action placement at 320 CSS pixels. |
+| 6 | A room without a usable low wall could stall future spawns. Both species shared an attack arc, and the laser obscured its core. | Add floor-spawn fallback, a low dome-first ram, a translucent beam halo and a brief shrinking afterimage. Retest the original crystal and meadow controls during an encounter. |
+
+From the repository root, run the following. The render and session scripts use Python Playwright and Pillow. They use installed Google Chrome, a Playwright Chromium installation, or the executable given by `CHROME_BIN`.
+
+```sh
+node scripts/test_room_map.mjs
+node scripts/test_room_encounters.mjs
+python scripts/room-qa/render.py ./renders/encounters roam side warning leap breach ram vapor
+```
+
+To exercise the built site, pass its room URL and a capture directory. The test enters from the Start button using a synthetic moving camera and depth feed, collects a crystal, opens a meadow window, zaps a dinosaur with a touchscreen tap, interrupts and restores tracking and depth, mutes audio, rescans and exits. Add `--shield` to capture the impact reaction as well.
+
+```sh
+python scripts/room-qa/session.py http://localhost:8000/3d/room/ ./renders/session
+```
+
+The pose renderer exports a contact sheet, individual PNGs, a stereo WAV and per-cue peak, RMS, balance and audible duration. The WAV plays the phaser, raptor warning, raptor cry, wall cracks, breach, dome warning, dome cry, shield hit and vaporization in that order. On a phone, check the cues over its speakers, try standing and seated eye heights, and walk past actual furniture to evaluate occlusion and tracking.

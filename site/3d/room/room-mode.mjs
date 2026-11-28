@@ -4,6 +4,9 @@ import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector.js'
 import { RoomMap, TILE, tileCenter, tileInAperture } from './room-map.mjs'
 import { RoomWorld } from './room-world.mjs'
 import { depthFrame } from './depth.mjs'
+import { Encounters, autoAim } from './encounters.mjs'
+import { EncounterView } from './encounter-view.mjs'
+import { encounterSound, soundPan } from './encounter-sound.mjs'
 import { JungleAudio } from '../sound.mjs'
 
 const id=name=>document.getElementById(name)
@@ -13,10 +16,66 @@ const action=id('charge'), exterior=id('exterior'), report=id('report')
 const audio=new JungleAudio()
 const maximumOpenings=6
 let engine, world, helper, output, manager, tracking=false, frameObserver, space, active=false
-let map, tiles, room, eye, look, wall, ammo, surveyed, armed, lastScan, lastSurvey, mappedVersion, heightBand
+let map, tiles, room, eye, look, wall, ammo, surveyed, lastScan, lastSurvey, mappedVersion, heightBand
 let lastDepth, trace, fire, previewMode, floorTiles, nextCrystal, domOverlay, verifiedWall
 
+const encounter=new Encounters(onEncounter)
+let muted=false
+try {muted=localStorage.getItem('room-muted')==='true'} catch {}
+function setSound() {
+  id('sound').setAttribute('aria-pressed',String(muted))
+  id('sound').setAttribute('aria-label',muted?'Unmute sounds':'Mute sounds')
+  audio.setLevels(0,muted?0:.43,active)
+}
+id('sound').addEventListener('click',()=>{
+  muted=!muted
+  try {localStorage.setItem('room-muted',String(muted))} catch {}
+  setSound()
+})
+let creatures, inverseProjection, cameraWorld, previousFrame, fresh=false
+const field=id('phaser'), hits=id('shield-hit'), tally=id('tag-count')
+function onEncounter(type,actor,direction) {
+  creatures.event(type,actor,eye,direction)
+  let pan=0,distance=1
+  if(actor && eye && look) {
+    const dx=actor.x-eye.x,dz=actor.z-eye.z
+    distance=Math.hypot(dx,dz)
+    pan=soundPan(look,dx,dz)
+  }
+  encounterSound(audio,type,actor?.kind,type==='shot'||type==='hit'?0:pan,type==='shot'?0:distance)
+  if(type==='hit') {
+    hits.getAnimations().forEach(a=>a.cancel())
+    const peak=matchMedia('(prefers-reduced-motion: reduce)').matches?.22:.58
+    hits.animate([{opacity:0},{opacity:peak,offset:.2},{opacity:0}],{duration:420})
+    announce('Shield hit · keep zapping!')
+  }
+  if(type==='spawn' && actor.id===1) announce('Look near the floor. Tap a dinosaur to zap it.')
+  if(type==='vapor') {
+    tally.textContent=encounter.score
+    announce('Dinosaur zapped!')
+  }
+}
+function firePhaser(event) {
+  if(!active || !tracking || !fresh || !encounter.enabled || !eye) return
+  let dir=look
+  if(event?.detail && inverseProjection && cameraWorld) {
+    const rect=field.getBoundingClientRect()
+    const x=2*(event.clientX-rect.left)/rect.width-1,y=1-2*(event.clientY-rect.top)/rect.height
+    const local=Vector3.TransformCoordinates(new Vector3(x,y,-1),inverseProjection)
+    dir=Vector3.TransformNormal(local,cameraWorld).normalize()
+  }
+  encounter.shoot(eye,dir)
+}
 function resetMap(reason='') {
+  encounter.reset()
+  creatures?.clear()
+  previousFrame=null
+  fresh=false
+  tracking=false
+  field.disabled=true
+  ar.dataset.armed='false'
+  tally.textContent=0
+  hits.getAnimations().forEach(a=>a.cancel())
   map=new RoomMap()
   tiles=[]
   floorTiles=[]
@@ -47,10 +106,14 @@ function runStatus(text, percent) {
 }
 
 function updateControls() {
-  const locked=!tracking || !wall || !surveyed || fire || world.portals.length>=maximumOpenings
-  const collectable=tracking && surveyed && world.crystals.length && !fire
+  field.disabled=!tracking || !fresh || !encounter.enabled
+  ar.dataset.armed=String(surveyed)
+  ar.dataset.lock=String(!field.disabled && !!autoAim(encounter.actors,eye,look))
+  const locked=!tracking || !fresh || !wall || !surveyed || fire || world.portals.length>=maximumOpenings
+  const collectable=tracking && fresh && surveyed && !fire && world.crystalIndex(eye,look,true)>=0
   action.disabled=!(collectable || (ammo && !locked))
-  action.textContent=fire ? 'Fusing…' : ammo ? 'Blast wall' : 'Collect crystal'
+  const label=fire ? 'Fusing…' : collectable || !ammo ? 'Collect crystal' : 'Blast wall'
+  if(action.textContent!==label) action.textContent=label
   exterior.disabled=!!locked || !ammo
   exterior.setAttribute('aria-pressed',String(previewMode))
   id('ammo-count').textContent=ammo
@@ -60,8 +123,8 @@ function updateControls() {
 function capturePose(pose) {
   const p=pose.transform.position
   eye=new Vector3(p.x,p.y,p.z)
-  const transform=Matrix.FromArray(pose.transform.matrix)
-  look=Vector3.TransformNormal(new Vector3(0,0,-1),transform).normalize()
+  cameraWorld=Matrix.FromArray(pose.transform.matrix)
+  look=Vector3.TransformNormal(new Vector3(0,0,-1),cameraWorld).normalize()
 }
 
 function chooseCrystal(now) {
@@ -99,14 +162,26 @@ function status(now) {
 function onFrame(frame) {
   const now=performance.now()/1000
   const pose=frame.getViewerPose(space)
+  const wasTracking=tracking
   tracking=!!pose && !pose.emulatedPosition && manager.session.visibilityState==='visible'
   if (!tracking) {
-    world.scene.meshes.forEach(mesh=>mesh.visibility=0)
+    if(wasTracking) world.scene.meshes.forEach(mesh=>mesh.visibility=0)
+    previousFrame=null
+    fresh=false
+    field.disabled=true
     if (lastSurvey+.25<now) { lastSurvey=now; status(now); updateControls() }
     return
   }
-  world.scene.meshes.forEach(mesh=>{if (mesh.visibility===0) mesh.visibility=1})
+  if(!wasTracking) world.scene.meshes.forEach(mesh=>{if (mesh.visibility===0) mesh.visibility=1})
   capturePose(pose)
+  const view=pose.views[0]
+  const projection=Matrix.FromArray(view.projectionMatrix)
+  inverseProjection=Matrix.Invert(projection)
+  const clip=Matrix.FromArray(view.transform.inverse.matrix).multiply(projection)
+  for(const a of encounter.actors) {
+    const p=Vector3.TransformCoordinates(new Vector3(a.x,a.y+.27,a.z),clip)
+    a.inFrame=p.z>0 && p.z<1 && Math.abs(p.x)<1 && Math.abs(p.y)<1
+  }
   if (trace && Vector3.DistanceSquared(trace,eye)>2.25) {
     restartSurvey('Tracking origin moved. Scan the room again.')
     return
@@ -115,7 +190,6 @@ function onFrame(frame) {
   let currentDepth=null
   if (now-lastScan>.13) {
     lastScan=now
-    const view=pose.views[0]
     // Chrome exposes CPU depth on the frame. Browsers may temporarily return
     // null while ARCore initializes or recovers from low light or fast motion.
     let depth
@@ -126,6 +200,10 @@ function onFrame(frame) {
         map.integrate(eye,scan.samples,scan.measure)
         lastDepth=now
         currentDepth=scan
+        for(const a of encounter.actors) {
+          const seen=scan.measure({x:a.x,y:a.y+.27,z:a.z})
+          if(seen) a.hidden=seen.depth<seen.expected-.20
+        }
         for (const portal of world.portals) {
           const observed=scan.measure(portal.center)
           portal.obstructed=!!observed && observed.depth<observed.expected-.26
@@ -139,8 +217,9 @@ function onFrame(frame) {
     if (now-lastDepth<1.6) room=map.survey(eye,tiles)
     if (room.durable && !surveyed) {
       surveyed=true
-      announce('Room ready. Aim at a black crystal and tap to collect it.')
+      announce('Room ready. Tap a dinosaur to fire. Aim at a black crystal and press Collect.')
     }
+    if(now-lastDepth<1.6) encounter.survey(room,eye,tiles)
     floorTiles=room.floor.tiles ?? []
     for (const portal of world.portals.slice()) {
       if (!map.tiles.has(portal.key)) world.removePortal(portal)
@@ -155,6 +234,11 @@ function onFrame(frame) {
     chooseCrystal(now)
     status(now)
   }
+  fresh=lastDepth>0 && now-lastDepth<1.6
+  const dt=previousFrame===null?0:Math.min(.10,now-previousFrame)
+  previousFrame=now
+  if(fresh) encounter.step(dt,eye,look)
+  creatures.draw(encounter.actors,fresh?dt:0,encounter.time,fresh && encounter.enabled)
   wall=now-lastDepth<1.6 ? map.wallTarget(eye,look,tiles) : null
   if (wall && world.portals.some(p=>tileInAperture(wall.tile,p))) wall=null
   if (currentDepth) {
@@ -188,7 +272,7 @@ function pickup() {
 }
 
 function useCharge() {
-  if (!tracking || !surveyed || !eye || fire) return
+  if (!tracking || !fresh || !surveyed || !eye || fire) return
   if (world.collect(eye,look,true)) { pickup();return }
   if (!ammo || !wall || world.portals.length>=maximumOpenings ||
     !room.floor.count || !room.roof.count) return
@@ -245,6 +329,7 @@ async function prepare() {
   try {
     engine=new Engine(canvas,true,{alpha:true,stencil:true,premultipliedAlpha:true})
     world=new RoomWorld(engine)
+    creatures=new EncounterView(world.scene)
     helper=await WebXRExperienceHelper.CreateAsync(world.scene)
     if (!helper.camera || !helper.sessionManager) throw new Error('WebXR initialization failed')
     helper.camera.minZ=.03
@@ -275,14 +360,14 @@ async function enter() {
     space.addEventListener('reset',onReset)
     manager.onXRSessionEnded.addOnce(cleanup)
     domOverlay=!!manager.session.domOverlayState
-    manager.session.addEventListener('select',useCharge)
+    manager.session.addEventListener('select',()=>firePhaser())
     ar.hidden=false
     setup.hidden=true
     canvas.hidden=false
     world.clearProgress()
     resetMap()
     announce('Scan the floor, ceiling and walls. Keep the center of the camera clear.')
-    audio.setLevels(0,.35,true)
+    setSound()
     world.scene.autoClear=true
     frameObserver=manager.onXRFrameObservable.add(onFrame)
     engine.runRenderLoop(()=>{
@@ -298,6 +383,7 @@ async function enter() {
 }
 
 begin.addEventListener('click',enter)
+field.addEventListener('click',firePhaser)
 action.addEventListener('click',useCharge)
 exterior.addEventListener('click',()=>{
   previewMode=!previewMode

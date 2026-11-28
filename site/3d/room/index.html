@@ -8,7 +8,7 @@
   <title>Room Expedition · Maze Trail</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./room.css?v=1">
+  <link rel="stylesheet" href="./room.css?v=2">
 </head>
 <body>
   <canvas id="ar-canvas" aria-hidden="true" hidden></canvas>
@@ -16,7 +16,7 @@
     <div class="start-copy">
       <a class="brand" href="../../">Maze Trail</a>
       <h1>Room<br><em>Expedition</em></h1>
-      <p>Scan the room around you, collect black crystals and open windows into the dinosaur world.</p>
+      <p>Scan the room around you, collect black crystals and open windows into the dinosaur world. Tap tiny intruders to zap them with your phaser.</p>
       <div class="actions">
         <button class="primary" id="begin" type="button" disabled>Start room scan</button>
         <a class="button" href="../?mode=maze">Play the maze</a>
@@ -26,11 +26,22 @@
   </main>
   <section id="ar-ui" aria-label="Room Expedition controls" hidden>
     <div class="mist" aria-hidden="true"></div>
+    <button type="button" id="phaser" aria-label="Fire phaser" disabled></button>
+    <div id="shield-hit" aria-hidden="true"></div>
     <div class="session-top">
       <div class="scanner">
         <strong id="scan-state">Looking for surfaces</strong>
         <div class="meter"><progress id="scan-progress" max="1" value="0" aria-label="Room scan progress"></progress><span id="scan-percent">0%</span></div>
+        <div class="inventory">
+          <span class="ammo" aria-label="Crystal charges">◆ <b id="ammo-count">0</b></span>
+          <span class="tags" aria-label="Dinosaurs zapped">✦ <b id="tag-count">0</b></span>
+        </div>
       </div>
+      <button id="sound" type="button" aria-label="Mute sounds" aria-pressed="false">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <path d="M3 9h4l5-4v14l-5-4H3z"/><path class="waves" d="M16 8q4 4 0 8m3-11q6 7 0 14"/><path class="muted" d="m16 9 6 6m0-6-6 6"/>
+        </svg>
+      </button>
       <button id="end-room" type="button">Exit</button>
     </div>
     <div class="crosshair" aria-hidden="true"></div>
@@ -40,10 +51,9 @@
         <button id="rescan" type="button">Rescan</button>
         <button id="exterior" type="button" aria-pressed="false" title="Show the dinosaur meadow through the next wall opening" disabled>Meadow view</button>
         <button id="charge" class="primary" type="button" disabled>Collect crystal</button>
-        <span class="ammo" aria-label="Crystal charges">◆ <b id="ammo-count">0</b></span>
       </div>
     </div>
   </section>
-  <script type="module" src="./room-mode.mjs?v=1"></script>
+  <script type="module" src="./room-mode.mjs?v=2"></script>
 </body>
 </html>

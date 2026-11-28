@@ -156,7 +156,7 @@ function mappedMesh(scene,alpha) {
           (p)=>[(p.x*tile.nz-p.z*tile.nx)*.8,p.y*.8])
       } else {
         if (tile.kind==='floor') center.y+=.015
-        quad(geometry[tile.kind],center,TILE*1.008,TILE*1.008,Vector3.Right(),new Vector3(0,0,-1),
+        quad(geometry[tile.kind],center,TILE,TILE,Vector3.Right(),new Vector3(0,0,-1),
           p=>tile.kind==='ceiling' ? [p.x*.12,p.z*.12] : [p.x*.72,p.z*.72])
       }
     }
@@ -264,13 +264,17 @@ export class RoomWorld {
     this.crystals.push({mesh,position})
   }
 
-  collect(eye,direction,aimed=false) {
-    const index=this.crystals.findIndex(({mesh})=>{
+  crystalIndex(eye,direction,aimed=false) {
+    return this.crystals.findIndex(({mesh})=>{
       const delta=mesh.position.subtract(eye)
       const distance=delta.length()
       return aimed ? distance<3.9 && Vector3.Dot(delta.scale(1/distance),direction)>.976 :
         Math.hypot(delta.x,delta.z)<.36 && delta.y<.22 && delta.y>-2.10
     })
+  }
+
+  collect(eye,direction,aimed=false) {
+    const index=this.crystalIndex(eye,direction,aimed)
     if (index<0) return false
     const [{mesh}]=this.crystals.splice(index,1)
     this.burst(mesh.position,10,1.1,performance.now()/1000)
