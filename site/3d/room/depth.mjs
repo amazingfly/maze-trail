@@ -1,7 +1,7 @@
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector.js'
 
-const COLS=38
-const ROWS=32
+export const COLS=38
+export const ROWS=32
 
 // WebXR depth is perpendicular to the view plane. Unproject a ray, then
 // scale its -Z to the measurement before applying the tracked view transform.
@@ -33,7 +33,7 @@ export function depthFrame(view, depth) {
       if (sides.some(point=>!point || Math.abs(point.d-center.d)>.18+center.d*.10)) continue
       const normal=Vector3.Cross(sides[1].point.subtract(sides[0].point),sides[3].point.subtract(sides[2].point))
       if (normal.lengthSquared()<1e-8) continue
-      samples.push({point:center.point,normal:normal.normalize()})
+      samples.push({pixel:i,point:center.point,normal:normal.normalize()})
     }
   }
   return {samples,measure(point) {

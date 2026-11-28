@@ -20,14 +20,46 @@ with sync_playwright() as pw:
     page.on("pageerror",lambda e: errors.append(str(e)))
     page.add_init_script(path=Path(__file__).with_name("mock-xr.js"))
     page.goto(args.url)
+    page.evaluate("mockRoom.aim(0,-1.04);mockRoom.depth(false)")
     page.locator("#begin:enabled").tap()
     page.locator("#ar-ui").wait_for()
     assert page.locator("#phaser").is_disabled()
     assert "depth-sensing" in page.evaluate("requestedFeatures")
-    page.get_by_text("Room mapped",exact=True).wait_for(timeout=95000)
-    page.evaluate("mockRoom.aim(0,-.69)")
+    # Examine the rendered alpha over the left and right thirds of the view.
+    page.evaluate("""() => {
+      window.mistLevels=()=>{
+        const c=document.getElementById('discovery-fog')
+        const p=c.getContext('2d').getImageData(0,0,c.width,c.height).data
+        return [.22,.79].map(f=>{
+          let sum=0,n=0
+          for(let y=8;y<23;y++) for(let x=-3;x<=3;x++) {
+            sum+=p[(y*c.width+Math.floor(f*c.width)+x)*4+3];n++
+          }
+          return sum/n
+        })
+      }
+    }""")
+    assert min(page.evaluate("mistLevels()"))>150
+    page.screenshot(path=str(args.output/"entry-mist.png"))
+    # Level gaze with a narrow band of wall depth and no floor or ceiling.
+    page.evaluate("mockRoom.aim(0,0);mockRoom.wallOnly(true);mockRoom.width(.54);mockRoom.depth(true)")
     page.locator("#phaser:enabled").wait_for()
-    print("Enclosure unlocked the phaser.",flush=True)
+    page.wait_for_function("document.getElementById('scan-state').textContent==='Exploring'")
+    assert page.locator("#ar-ui").get_attribute("data-armed")=="false"
+    page.touchscreen.tap(196,424)
+    assert page.locator("#charge").is_hidden()
+    page.evaluate("mockRoom.wallOnly(false);mockRoom.aim(0,-1.04)")
+    page.wait_for_function("mistLevels()[0]<30 && mistLevels()[1]>150")
+    page.locator("#phaser:enabled").wait_for()
+    assert page.locator("#charge").is_hidden()
+    page.wait_for_function("document.getElementById('ar-ui').dataset.armed==='true'")
+    page.wait_for_function("mockRoom.snapshot()>2000")
+    page.screenshot(path=str(args.output/"partial-floor.png"))
+    page.evaluate("mockRoom.depth(false);mockRoom.aim(Math.PI,.18)")
+    page.wait_for_function("Math.min(...mistLevels())>150")
+    page.evaluate("mockRoom.width(1);mockRoom.aim(0,-1.04);mockRoom.depth(true)")
+    page.wait_for_function("Math.max(...mistLevels())<35")
+    print("Entered in fog; only the observed half cleared. The floor and phaser appeared before enclosure.",flush=True)
     def capture(name):
         assert page.evaluate("mockRoom.snapshot()")>2000, "XR render target was empty"
         page.screenshot(path=str(args.output/(name+".png")))
@@ -68,7 +100,8 @@ with sync_playwright() as pw:
         if int(page.locator("#tag-count").inner_text()): break
         find_target()
     assert int(page.locator("#tag-count").inner_text())==1,"Touch did not land a single assisted shot"
-    print("Touchscreen phaser registered one zap.",flush=True)
+    assert page.locator("#charge").is_hidden(),"A partial room unlocked black crystals"
+    print("Tapped a dinosaur before mapping the ceiling or enclosing the room.",flush=True)
     capture("after-shot")
     page.evaluate("mockRoom.pause(true)")
     page.wait_for_function("document.querySelector('#phaser').disabled")
@@ -80,6 +113,8 @@ with sync_playwright() as pw:
     page.wait_for_function("document.querySelector('#phaser').disabled")
     page.evaluate("mockRoom.depth(true)")
     page.locator("#phaser:enabled").wait_for()
+    page.evaluate("mockRoom.scan()")
+    page.get_by_text("Room mapped",exact=True).wait_for(timeout=95000)
     # Keep the original crystal and wall controls covered in the same encounter.
     for i in range(40):
         if int(page.locator("#ammo-count").inner_text()): break
@@ -104,8 +139,12 @@ with sync_playwright() as pw:
     assert max(b["y"] for b in boxes)-min(b["y"] for b in boxes)<2
     assert all(0<=b["x"] and b["x"]+b["width"]<=321 for b in boxes)
     capture("compact-hud")
+    page.evaluate("mockRoom.depth(false)")
     page.get_by_role("button",name="Rescan",exact=True).tap()
     assert page.locator("#tag-count").inner_text()=="0" and page.locator("#phaser").is_disabled()
+    assert min(page.evaluate("mistLevels()"))>150 and page.locator("#charge").is_hidden()
+    page.evaluate("mockRoom.depth(true)")
+    page.locator("#phaser:enabled").wait_for()
     page.get_by_role("button",name="Exit",exact=True).tap()
     page.locator("#begin:enabled").wait_for()
     assert not errors,errors

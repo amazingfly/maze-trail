@@ -8,7 +8,7 @@ for(let u=-7;u<=7;u++) for(let v=-7;v<=7;v++) {
   cells.add(u+':'+v)
 }
 for(let u=-7;u<=7;u++) walls.push({kind:'wall',u,v:1,nx:0,nz:1,plane:2.07,key:'wall:'+u})
-const room={durable:true,cells,floor:{tiles,y:0}}
+const room={durable:true,sealed:true,cells,floor:{tiles,y:0}}
 const events=[]
 const game=new Encounters((type,a)=>events.push([type,a?.kind,game.time]),()=>.37)
 const run=n=>{for(let i=0;i<n;i++) game.step(1/60,eye,look)}
@@ -28,7 +28,7 @@ assert.equal(game.shoot(eye,dir),false)
 assert.ok(game.actors.length<3)
 game.reset()
 assert.equal(game.actors.length,0)
-console.log('Enclosure gating, indoor roam, breach, warning, leap, shield hit and tap-to-vaporize passed.')
+console.log('Local floor discovery, indoor roam, breach, warning, leap, shield hit and tap-to-vaporize passed.')
 
 const blockedRoom={...room,cells:new Set([...cells].filter(k=>!k.startsWith('2:')))}
 game.survey(blockedRoom,eye,walls)
@@ -56,9 +56,20 @@ for(const a of game.actors) a.inFrame=false
 const before=events.length
 run(450)
 assert.ok(events.slice(before).every(([type])=>type!=='hit' && type!=='warn'),'offscreen attacks are withheld')
-game.survey({...room,durable:false},eye,[])
+game.survey({...room,durable:false,sealed:false,cells:new Set()},eye,[])
+assert.ok(game.enabled,'opening a door preserves play on observed local floor')
+game.survey({...room,durable:false,sealed:false,floor:{tiles:[],y:0}},eye,[])
 const paused=game.time
 run(120)
 assert.equal(game.time,paused)
-assert.equal(game.shoot(eye,look),false)
-console.log('Checked the spawn cap, missing breach sites, offscreen attacks and interrupted enclosure.')
+assert.equal(game.shoot(eye,look,99),true,'can fire into the mist without local floor')
+assert.equal(events.at(-1)[0],'shot')
+assert.equal(events.at(-1)[1],undefined)
+console.log('Checked the spawn cap, missing breach sites, offscreen attacks and loss of local floor.')
+
+const distantFloor={tiles:tiles.filter(t=>t.v>=4),y:0}
+const divider=new Set(tiles.filter(t=>t.v===2).map(t=>t.u+':'+t.v))
+game.survey({sealed:false,floor:distantFloor,barrier:divider},eye,[])
+assert.equal(game.enabled,false,'known wall separates the viewer from the only observed floor')
+game.survey({sealed:false,floor:distantFloor,barrier:new Set()},eye,[])
+assert.equal(game.enabled,true,'a visible floor patch can host dinosaurs before mapping the floor underfoot')

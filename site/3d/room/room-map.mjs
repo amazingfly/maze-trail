@@ -45,10 +45,12 @@ export class RoomMap {
     this.firstEye ??= copy(eye)
     this.scan++
     const hits = new Map()
-    for (const {point,normal} of samples) {
+    for (const sample of samples) {
+      const {point,normal}=sample
       if (distance(point,this.firstEye)>RADIUS) continue
       const surface = surfaceSample(point,normal,eye)
       if (!surface) continue
+      sample.key=surface.key
       const hit = hits.get(surface.key)
       if (hit) {
         hit.sum += surface.plane
@@ -122,16 +124,12 @@ export class RoomMap {
     const floor=band('floor',-2.35,-.56), roof=band('ceiling',.26,3.1)
     const result = {floor,roof,sealed:false,durable:false,cells:new Set(),fraction:0}
     this.room = result
-    if (floor.count<12 || roof.count<12 || roof.y-floor.y<1.7) {
-      this.enclosedScans=0
-      result.fraction=Math.min(1,floor.count/12)*.24+Math.min(1,roof.count/12)*.24
-      return result
-    }
     const occupied = new Map()
+    const wallTop=roof.count?Math.min(roof.y-.20,floor.y+1.94):floor.y+1.94
     for (const wall of tiles) {
-      if (wall.kind!=='wall') continue
+      if (!floor.count || wall.kind!=='wall') continue
       const center=tileCenter(wall)
-      if (center.y<floor.y+.42 || center.y>Math.min(roof.y-.20,floor.y+1.94)) continue
+      if (center.y<floor.y+.42 || center.y>wallTop) continue
       for (const offset of [-.145,0,.145]) {
         for (const depth of [-.045,.045]) {
           const key=key2(cell(center.x+wall.nz*offset+wall.nx*depth),cell(center.z-wall.nx*offset+wall.nz*depth))
@@ -141,6 +139,12 @@ export class RoomMap {
       }
     }
     const barrier = new Set([...occupied].filter(([,heights])=>heights.size>=2).map(([key])=>key))
+    result.barrier=barrier
+    if (floor.count<12 || roof.count<12 || roof.y-floor.y<1.7) {
+      this.enclosedScans=0
+      result.fraction=Math.min(1,floor.count/12)*.24+Math.min(1,roof.count/12)*.24
+      return result
+    }
     const sx=cell(eye.x), sz=cell(eye.z), pending=[[sx,sz]]
     result.cells.add(key2(sx,sz))
     let escaped=false

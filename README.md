@@ -19,7 +19,7 @@ Open `http://localhost:8000/` for the example or `http://localhost:8000/maze/mz1
 
 ## Room Expedition
 
-Compatible Android phones open the camera-based game from the 3D hub. Scan the space, zap pocket dinosaurs, collect black crystals and reveal the area behind a mapped wall. [Room Expedition controls and mapping](docs/room-expedition.md)
+Compatible Android phones open the camera-based game from the 3D hub. Start in the mist and explore as the phone maps your surroundings. Zap pocket dinosaurs on newly revealed floor. Enclosing a room unlocks black crystals for opening views through its walls. [Room Expedition controls and mapping](docs/room-expedition.md)
 
 ## GitHub Pages
 

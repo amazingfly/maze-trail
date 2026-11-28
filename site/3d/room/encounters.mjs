@@ -11,11 +11,18 @@ export function floorRoutes(room,eye) {
   const nodes=new Map(), queue=[]
   for(const t of room.floor.tiles??[]) {
     const k=key(t.u,t.v)
-    if(room.cells.has(k)) nodes.set(k,{...tileCenter(t),u:t.u,v:t.v,next:null,steps:Infinity})
+    if(!room.barrier?.has(k) && (!room.sealed || room.cells.has(k))) nodes.set(k,{...tileCenter(t),u:t.u,v:t.v,next:null,steps:Infinity})
   }
   const [u,v]=cell(eye)
-  const start=nodes.get(key(u,v))??[...nodes.values()].sort((a,b)=>dist(a,eye)-dist(b,eye))[0]
-  if(!start || dist(start,eye)>.62) return new Map()
+  let start=nodes.get(key(u,v))
+  if(!start) {
+    let nearest=2.4
+    for(const node of nodes.values()) {
+      const range=dist(node,eye)
+      if(range<nearest && clearLine(eye,node,k=>!room.barrier?.has(k))) {start=node;nearest=range}
+    }
+  }
+  if(!start) return new Map()
   start.steps=0
   queue.push(start)
   for(let i=0;i<queue.length;i++) {
@@ -30,11 +37,12 @@ export function floorRoutes(room,eye) {
   return new Map(queue.map(n=>[key(n.u,n.v),n]))
 }
 
-function clearLine(cells,a,b) {
+function clearLine(a,b,canPass) {
   const steps=Math.ceil(dist(a,b)/(.40*TILE))
   for(let i=0;i<=steps;i++) {
     const t=steps?i/steps:0
-    if(!cells.has(key(Math.floor((a.x+(b.x-a.x)*t)/TILE),Math.floor((a.z+(b.z-a.z)*t)/TILE)))) return false
+    const k=key(Math.floor((a.x+(b.x-a.x)*t)/TILE),Math.floor((a.z+(b.z-a.z)*t)/TILE))
+    if(!canPass(k)) return false
   }
   return true
 }
@@ -57,14 +65,14 @@ export function autoAim(actors,origin,direction) {
 export class Encounters {
   constructor(emit,random=Math.random) { this.emit=emit;this.random=random;this.reset() }
   reset() {
-    this.actors=[];this.routes=new Map();this.cells=new Set();this.edges=[]
+    this.actors=[];this.routes=new Map();this.barrier=new Set();this.edges=[]
     this.time=0;this.nextSpawn=1;this.shotAt=-1;this.hitAt=-10
     this.score=0;this.serial=0;this.enabled=false
   }
   survey(room,eye,walls) {
-    this.enabled=!!room.durable
-    this.cells=room.cells
-    this.routes=this.enabled?floorRoutes(room,eye):new Map()
+    this.barrier=room.barrier
+    this.routes=floorRoutes(room,eye)
+    this.enabled=this.routes.size>=6
     this.edges=walls.filter(t=>t.kind==='wall' && Math.abs(tileCenter(t).y-room.floor.y-.45)<.14)
   }
   node(p) {return this.routes.get(key(...cell(p)))}
@@ -105,7 +113,7 @@ export class Encounters {
       if(!n) {this.remove(a);continue}
       const dx=eye.x-a.x,dz=eye.z-a.z,d=Math.hypot(dx,dz)
       const facing=dx*look.x+dz*look.z
-      const los=clearLine(this.cells,a,eye)
+      const los=clearLine(a,eye,k=>!this.barrier?.has(k))
       a.blocked=!los
       a.visible=los && facing<.10 && a.inFrame!==false
       a.age+=dt
@@ -122,7 +130,7 @@ export class Encounters {
           const neighbors=a.state==='roam'?[[1,0],[-1,0],[0,1],[0,-1]].map(([u,v])=>this.routes.get(key(n.u+u,n.v+v))).filter(Boolean):[]
           if(a.state==='roam' && (!a.wander || dist(a,a.wander)<.07))
             a.wander=neighbors[Math.floor(this.random()*neighbors.length)]
-          const to=a.state==='roam'?a.wander:(los && clearLine(this.routes,a,eye)?eye:n.next)
+          const to=a.state==='roam'?a.wander:(los && clearLine(a,eye,k=>this.routes.has(k))?eye:n.next)
           if(to && (d>.80 || a.state==='roam')) {
             const x=to.x-a.x,z=to.z-a.z,r=Math.hypot(x,z)
             const travel=Math.min(r,dt*(a.kind==='domer'?.40:.52))
@@ -157,10 +165,10 @@ export class Encounters {
     }
   }
   remove(a) {this.actors=this.actors.filter(b=>a!==b);this.emit('remove',a)}
-  shoot(eye,dir) {
-    if(!this.enabled || this.time-this.shotAt<.25) return false
-    this.shotAt=this.time
-    const target=autoAim(this.actors,eye,dir)
+  shoot(eye,dir,time=this.time) {
+    if(time-this.shotAt<.25) return false
+    this.shotAt=time
+    const target=this.enabled?autoAim(this.actors,eye,dir):null
     this.emit('shot',target,dir)
     if(target) {this.score++;this.emit('vapor',target);this.remove(target)}
     return true

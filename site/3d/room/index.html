@@ -8,7 +8,7 @@
   <title>Room Expedition · Maze Trail</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./room.css?v=2">
+  <link rel="stylesheet" href="./room.css?v=3">
 </head>
 <body>
   <canvas id="ar-canvas" aria-hidden="true" hidden></canvas>
@@ -16,22 +16,21 @@
     <div class="start-copy">
       <a class="brand" href="../../">Maze Trail</a>
       <h1>Room<br><em>Expedition</em></h1>
-      <p>Scan the room around you, collect black crystals and open windows into the dinosaur world. Tap tiny intruders to zap them with your phaser.</p>
+      <p>Explore the mist. Watch grass, stone walls and tiny dinosaurs appear around you. Tap a dinosaur to fire your phaser.</p>
       <div class="actions">
-        <button class="primary" id="begin" type="button" disabled>Start room scan</button>
+        <button class="primary" id="begin" type="button" disabled>Start exploring</button>
         <a class="button" href="../?mode=maze">Play the maze</a>
       </div>
       <p id="room-message" role="status">Checking camera tracking support…</p>
     </div>
   </main>
   <section id="ar-ui" aria-label="Room Expedition controls" hidden>
-    <div class="mist" aria-hidden="true"></div>
+    <canvas id="discovery-fog" aria-hidden="true"></canvas>
     <button type="button" id="phaser" aria-label="Fire phaser" disabled></button>
     <div id="shield-hit" aria-hidden="true"></div>
     <div class="session-top">
       <div class="scanner">
-        <strong id="scan-state">Looking for surfaces</strong>
-        <div class="meter"><progress id="scan-progress" max="1" value="0" aria-label="Room scan progress"></progress><span id="scan-percent">0%</span></div>
+        <strong id="scan-state">Exploring the mist</strong>
         <div class="inventory">
           <span class="ammo" aria-label="Crystal charges">◆ <b id="ammo-count">0</b></span>
           <span class="tags" aria-label="Dinosaurs zapped">✦ <b id="tag-count">0</b></span>
@@ -54,6 +53,6 @@
       </div>
     </div>
   </section>
-  <script type="module" src="./room-mode.mjs?v=2"></script>
+  <script type="module" src="./room-mode.mjs?v=3"></script>
 </body>
 </html>

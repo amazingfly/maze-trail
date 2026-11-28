@@ -102,13 +102,13 @@ export class EncounterView {
       this.effect(this.ring(at(a),.27,'mint'),.34,null,0,true)
     }
   }
-  draw(actors,dt,time,enabled) {
+  draw(actors,dt,time,enabled,onFloor=enabled) {
     for(const a of actors) {
       const m=this.models.get(a.id)
       if(!m) continue
       const p=Math.min(1,a.age/a.duration)
       const emerge=a.state==='breach'?Math.max(0,(p-.35)/.65):1
-      m.root.setEnabled(enabled && !a.blocked && !a.hidden && emerge>0)
+      m.root.setEnabled(onFloor && !a.blocked && !a.hidden && emerge>0)
       m.root.position.set(a.x,a.y,a.z)
       if(emerge<1) {
         m.root.position.x=a.entry.x+(a.x-a.entry.x)*emerge
@@ -142,7 +142,7 @@ export class EncounterView {
     this.burrows=this.burrows.filter(b=>{
       b.age+=dt
       if(b.age>4) {b.root.dispose();return false}
-      b.root.setEnabled(enabled)
+      b.root.setEnabled(onFloor)
       b.root.scaling.setAll(Math.max(.02,Math.min(1,.17+b.age*1.2,4-b.age)))
       return true
     })

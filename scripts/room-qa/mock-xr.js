@@ -3,7 +3,7 @@
  const start=nativeNow()
  Object.defineProperty(performance,'now',{value:()=>start+(nativeNow()-start)*6})
  const aspect=390/844, f=1/Math.tan(.69), projection=new Float32Array([f/aspect,0,0,0,0,f,0,0,0,0,-1.0025,-1,0,0,-.06,0])
- let forced=null, openDoor=false, session, tracking=true, haveDepth=true
+ let forced=null, openDoor=false, session, tracking=true, haveDepth=true, depthWidth=1,wallOnly=false
  const reference=new EventTarget()
  reference.getOffsetReferenceSpace=()=>reference
  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]
@@ -25,6 +25,7 @@
    const view={eye:'none',projectionMatrix:projection,transform}
    return {session,getViewerPose:()=>({transform,views:[view],emulatedPosition:!tracking}),
     getDepthInformation:()=>!haveDepth?null:({getDepthInMeters(u,v) {
+      if(u>depthWidth || (wallOnly && Math.abs(v-.5)>.19)) return 0
       const rx=(u*2-1)*aspect/f, ry=(1-v*2)/f
       const d=forward.map((val,k)=>val+x[k]*rx+y[k]*ry)
       const sides=[[-2,2],[0,2.55],[-2,openDoor?4.7:2]]
@@ -59,7 +60,7 @@
    }
  }})
  window.mockRoom={aim:(yaw,pitch=0,pos=[0,1.55,0])=>{forced={yaw,pitch,pos}}, open:()=>{openDoor=true}, scan:()=>{forced=null},
-   pause:v=>{tracking=!v}, depth:v=>{haveDepth=v}, reset:()=>reference.dispatchEvent(new Event('reset'))}
+   pause:v=>{tracking=!v}, depth:v=>{haveDepth=v}, width:v=>{depthWidth=v}, wallOnly:v=>{wallOnly=v}, reset:()=>reference.dispatchEvent(new Event('reset'))}
  window.XRWebGLLayer=class {
    constructor(_session,gl) {
      this.framebufferWidth=390;this.framebufferHeight=844

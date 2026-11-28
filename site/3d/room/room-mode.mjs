@@ -3,6 +3,7 @@ import { WebXRExperienceHelper } from '@babylonjs/core/XR/webXRExperienceHelper.
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector.js'
 import { RoomMap, TILE, tileCenter, tileInAperture } from './room-map.mjs'
 import { RoomWorld } from './room-world.mjs'
+import { DiscoveryFog } from './discovery-fog.mjs'
 import { depthFrame } from './depth.mjs'
 import { Encounters, autoAim } from './encounters.mjs'
 import { EncounterView } from './encounter-view.mjs'
@@ -13,6 +14,7 @@ const id=name=>document.getElementById(name)
 const begin=id('begin'), ar=id('ar-ui'), canvas=id('ar-canvas')
 const setup=id('room-start'), message=id('room-message'), state=id('scan-state')
 const action=id('charge'), exterior=id('exterior'), report=id('report')
+const fog=new DiscoveryFog(id('discovery-fog'))
 const audio=new JungleAudio()
 const maximumOpenings=6
 let engine, world, helper, output, manager, tracking=false, frameObserver, space, active=false
@@ -56,7 +58,7 @@ function onEncounter(type,actor,direction) {
   }
 }
 function firePhaser(event) {
-  if(!active || !tracking || !fresh || !encounter.enabled || !eye) return
+  if(!active || !tracking || !fresh || !eye) return
   let dir=look
   if(event?.detail && inverseProjection && cameraWorld) {
     const rect=field.getBoundingClientRect()
@@ -64,7 +66,7 @@ function firePhaser(event) {
     const local=Vector3.TransformCoordinates(new Vector3(x,y,-1),inverseProjection)
     dir=Vector3.TransformNormal(local,cameraWorld).normalize()
   }
-  encounter.shoot(eye,dir)
+  encounter.shoot(eye,dir,performance.now()/1000)
 }
 function resetMap(reason='') {
   encounter.reset()
@@ -90,7 +92,9 @@ function resetMap(reason='') {
   lastScan=lastSurvey=lastDepth=0
   heightBand=null
   nextCrystal=mappedVersion=-1
-  ar.style.setProperty('--mist','.76')
+  fog.reset()
+  state.textContent='Exploring the mist'
+  ar.dataset.charges='false'
   ar.dataset.tracking='false'
   announce(reason)
 }
@@ -99,16 +103,11 @@ function announce(text) {
   if (domOverlay || !active) report.textContent=text
 }
 
-function runStatus(text, percent) {
-  if (state.textContent!==text) state.textContent=text
-  id('scan-progress').value=percent
-  id('scan-percent').textContent=Math.round(percent*100)+'%'
-}
-
 function updateControls() {
-  field.disabled=!tracking || !fresh || !encounter.enabled
-  ar.dataset.armed=String(surveyed)
-  ar.dataset.lock=String(!field.disabled && !!autoAim(encounter.actors,eye,look))
+  field.disabled=!tracking || !fresh
+  ar.dataset.armed=String(encounter.enabled || surveyed)
+  ar.dataset.charges=String(surveyed)
+  ar.dataset.lock=String(!field.disabled && encounter.enabled && !!autoAim(encounter.actors,eye,look))
   const locked=!tracking || !fresh || !wall || !surveyed || fire || world.portals.length>=maximumOpenings
   const collectable=tracking && fresh && surveyed && !fire && world.crystalIndex(eye,look,true)>=0
   action.disabled=!(collectable || (ammo && !locked))
@@ -149,14 +148,12 @@ function scoreCrystal(p) {
 
 function status(now) {
   ar.dataset.tracking=String(tracking)
-  ar.style.setProperty('--mist',String(tracking ? .76-.66*(room.fraction ?? 0) : .64))
-  if (!tracking) runStatus('Tracking paused · look at a textured surface',room.fraction ?? 0)
-  else if (now-lastDepth>1.6) runStatus('Move slowly side to side to acquire depth',room.fraction ?? 0)
-  else if (room.durable) runStatus('Room mapped',1)
-  else if (room.sealed) runStatus('Checking enclosure',room.fraction)
-  else if (!room.floor.count || room.floor.count<12) runStatus('Scan the floor',room.fraction ?? 0)
-  else if (!room.roof.count || room.roof.count<12) runStatus('Look up to scan the ceiling',room.fraction ?? 0)
-  else runStatus('Sweep the walls and any open doorway',room.fraction)
+  let text='Exploring the mist'
+  if(!tracking) text='Finding your position…'
+  else if(!lastDepth || now-lastDepth>1.6) text='Finding nearby surfaces…'
+  else if(room.durable) text='Room mapped'
+  else if(tiles.length) text='Exploring'
+  if(state.textContent!==text) state.textContent=text
 }
 
 function onFrame(frame) {
@@ -165,7 +162,10 @@ function onFrame(frame) {
   const wasTracking=tracking
   tracking=!!pose && !pose.emulatedPosition && manager.session.visibilityState==='visible'
   if (!tracking) {
-    if(wasTracking) world.scene.meshes.forEach(mesh=>mesh.visibility=0)
+    if(wasTracking) {
+      fog.reset()
+      world.scene.meshes.forEach(mesh=>mesh.visibility=0)
+    }
     previousFrame=null
     fresh=false
     field.disabled=true
@@ -183,12 +183,13 @@ function onFrame(frame) {
     a.inFrame=p.z>0 && p.z<1 && Math.abs(p.x)<1 && Math.abs(p.y)<1
   }
   if (trace && Vector3.DistanceSquared(trace,eye)>2.25) {
-    restartSurvey('Tracking origin moved. Scan the room again.')
+    restartSurvey('Position changed. Nearby surfaces will reappear as you explore.')
     return
   }
   trace=eye.clone()
   let currentDepth=null
-  if (now-lastScan>.13) {
+  const moved=fog.outdated(pose,now)
+  if (now-lastScan>.13 || (moved && now-lastScan>.065)) {
     lastScan=now
     // Chrome exposes CPU depth on the frame. Browsers may temporarily return
     // null while ARCore initializes or recovers from low light or fast motion.
@@ -198,6 +199,7 @@ function onFrame(frame) {
       const scan=depthFrame(view,depth)
       if (scan.samples.length>20) {
         map.integrate(eye,scan.samples,scan.measure)
+        fog.observe(map,scan.samples,pose,now)
         lastDepth=now
         currentDepth=scan
         for(const a of encounter.actors) {
@@ -211,13 +213,14 @@ function onFrame(frame) {
       }
     }
   }
+  if(moved && !currentDepth) fog.reset()
   if (now-lastSurvey>.44) {
     lastSurvey=now
     tiles=map.confirmed()
     if (now-lastDepth<1.6) room=map.survey(eye,tiles)
     if (room.durable && !surveyed) {
       surveyed=true
-      announce('Room ready. Tap a dinosaur to fire. Aim at a black crystal and press Collect.')
+      announce('Black crystals discovered. Aim at one and press Collect.')
     }
     if(now-lastDepth<1.6) encounter.survey(room,eye,tiles)
     floorTiles=room.floor.tiles ?? []
@@ -238,7 +241,7 @@ function onFrame(frame) {
   const dt=previousFrame===null?0:Math.min(.10,now-previousFrame)
   previousFrame=now
   if(fresh) encounter.step(dt,eye,look)
-  creatures.draw(encounter.actors,fresh?dt:0,encounter.time,fresh && encounter.enabled)
+  creatures.draw(encounter.actors,fresh?dt:0,encounter.time,fresh,fresh && encounter.enabled)
   wall=now-lastDepth<1.6 ? map.wallTarget(eye,look,tiles) : null
   if (wall && world.portals.some(p=>tileInAperture(wall.tile,p))) wall=null
   if (currentDepth) {
@@ -311,11 +314,11 @@ function cleanup() {
   ar.hidden=true
   canvas.hidden=true
   begin.disabled=false
-  message.textContent='Scan a room to begin a new expedition.'
+  message.textContent='Start another expedition.'
 }
 
 function onReset() {
-  restartSurvey('Position tracking reset. Scan the room again.')
+  restartSurvey('Position tracking reset. Look around to rediscover your surroundings.')
 }
 
 async function prepare() {
@@ -366,7 +369,7 @@ async function enter() {
     canvas.hidden=false
     world.clearProgress()
     resetMap()
-    announce('Scan the floor, ceiling and walls. Keep the center of the camera clear.')
+    announce('Look around. The world appears through the mist as you explore.')
     setSound()
     world.scene.autoClear=true
     frameObserver=manager.onXRFrameObservable.add(onFrame)
@@ -391,7 +394,7 @@ exterior.addEventListener('click',()=>{
   updateControls()
 })
 id('end-room').addEventListener('click',exit)
-id('rescan').addEventListener('click',()=>restartSurvey('Room cleared. Scan the surfaces again.'))
+id('rescan').addEventListener('click',()=>restartSurvey('Starting fresh in the mist.'))
 ar.addEventListener('beforexrselect',event=>{ if (event.target.closest?.('button')) event.preventDefault() })
 window.addEventListener('pagehide',exit)
 prepare()
