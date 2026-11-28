@@ -4,8 +4,20 @@
  Object.defineProperty(performance,'now',{value:()=>start+(nativeNow()-start)*6})
  const aspect=390/844, f=1/Math.tan(.69), projection=new Float32Array([f/aspect,0,0,0,0,f,0,0,0,0,-1.0025,-1,0,0,-.06,0])
  let forced=null, openDoor=false, session, tracking=true, haveDepth=true, depthWidth=1,wallOnly=false
- const reference=new EventTarget()
- reference.getOffsetReferenceSpace=()=>reference
+ window.XRRigidTransform=class {
+   constructor(position,orientation) {this.position=position;this.orientation=orientation}
+ }
+ const rotate=([x,y,z],yaw)=>[Math.cos(yaw)*x+Math.sin(yaw)*z,y,-Math.sin(yaw)*x+Math.cos(yaw)*z]
+ function referenceSpace(position=[0,0,0],yaw=0) {
+   const ref=new EventTarget()
+   Object.assign(ref,{position,yaw})
+   ref.getOffsetReferenceSpace=({position:p,orientation:q})=>{
+     const offset=rotate([p.x,p.y,p.z],yaw)
+     return referenceSpace(position.map((v,i)=>v+offset[i]),yaw+2*Math.atan2(q.y,q.w))
+   }
+   return ref
+ }
+ let reference=referenceSpace()
  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]
  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
  const unit=a=>{const l=Math.hypot(...a);return a.map(v=>v/l)}
@@ -17,13 +29,18 @@
    const pos=forced?.pos ?? [.12*Math.sin(simulated*.22),1.55,.12*Math.cos(simulated*.23)]
    const forward=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)]
    const z=forward.map(v=>-v), x=unit(cross([0,1,0],z)), y=cross(z,x)
-   const qYaw=Math.PI+yaw, cp=Math.cos(pitch/2), sp=Math.sin(pitch/2)
-   const transform={matrix:Float32Array.of(...x,0,...y,0,...z,0,...pos,1),
-    inverse:{matrix:Float32Array.of(x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,pos),-dot(y,pos),-dot(z,pos),1)},
-    position:{x:pos[0],y:pos[1],z:pos[2],w:1},
-    orientation:{x:Math.cos(qYaw/2)*sp,y:Math.sin(qYaw/2)*cp,z:-Math.sin(qYaw/2)*sp,w:Math.cos(qYaw/2)*cp}}
-   const view={eye:'none',projectionMatrix:projection,transform}
-   return {session,getViewerPose:()=>({transform,views:[view],emulatedPosition:!tracking}),
+   function getViewerPose(ref) {
+     const qYaw=Math.PI+yaw-ref.yaw, cp=Math.cos(pitch/2), sp=Math.sin(pitch/2)
+     const p=rotate(pos.map((v,i)=>v-ref.position[i]),-ref.yaw)
+     const [right,up,back]=[x,y,z].map(axis=>rotate(axis,-ref.yaw))
+     const [rx,ry,rz]=right,[ux,uy,uz]=up,[bx,by,bz]=back
+     const transform={matrix:Float32Array.of(...right,0,...up,0,...back,0,...p,1),
+       inverse:{matrix:Float32Array.of(rx,ux,bx,0,ry,uy,by,0,rz,uz,bz,0,-dot(right,p),-dot(up,p),-dot(back,p),1)},
+       position:{x:p[0],y:p[1],z:p[2],w:1},
+       orientation:{x:Math.cos(qYaw/2)*sp,y:Math.sin(qYaw/2)*cp,z:-Math.sin(qYaw/2)*sp,w:Math.cos(qYaw/2)*cp}}
+     return {transform,views:[{eye:'none',projectionMatrix:projection,transform}],emulatedPosition:!tracking}
+   }
+   return {session,getViewerPose,
     getDepthInformation:()=>!haveDepth?null:({getDepthInMeters(u,v) {
       if(u>depthWidth || (wallOnly && Math.abs(v-.5)>.19)) return 0
       const rx=(u*2-1)*aspect/f, ry=(1-v*2)/f
@@ -60,7 +77,7 @@
    }
  }})
  window.mockRoom={aim:(yaw,pitch=0,pos=[0,1.55,0])=>{forced={yaw,pitch,pos}}, open:()=>{openDoor=true}, scan:()=>{forced=null},
-   pause:v=>{tracking=!v}, depth:v=>{haveDepth=v}, width:v=>{depthWidth=v}, wallOnly:v=>{wallOnly=v}, reset:()=>reference.dispatchEvent(new Event('reset'))}
+   origin:()=>{reference=referenceSpace([1.6,.24,-.72],.64)}, pause:v=>{tracking=!v}, depth:v=>{haveDepth=v}, width:v=>{depthWidth=v}, wallOnly:v=>{wallOnly=v}, reset:()=>reference.dispatchEvent(new Event('reset'))}
  window.XRWebGLLayer=class {
    constructor(_session,gl) {
      this.framebufferWidth=390;this.framebufferHeight=844

@@ -15,12 +15,13 @@ The animals follow the connected, observed floor. A broken wall window remains a
 ## How mapping works
 
 - Every 130 ms, sample a 38×32 grid of CPU depth, unproject camera-plane distances with the view projection, and transform them into the tracked local reference space. Use neighboring rays to estimate surface normals and discard unreliable samples at depth discontinuities.
+- In a familiar view, check geometry less often. Keep confirmed surfaces fixed through ordinary depth jitter. Process unmapped areas at the original rate.
 - Quantize measurements to 5 cm and store their accumulated support in sparse 26 cm surface tiles. Each candidate takes repeated samples to become visible. Depth behind an old tile votes to remove it, after four clear observations. Foreground obstacles and invalid depth supply no removal evidence. Measurements are bounded to 12 m from the session origin.
 - Thicken or clear the fog independently across the camera view using the accumulated evidence for the physical tile under each depth sample. A newly seen surface gradually clears. Turning back to a known surface reuses its evidence. Missing observations, changed surfaces and tracking loss can restore mist.
 - Validate the nearby floor and ceiling, then flood the horizontal grid from the tracked position and look for gaps in its wall boundary. A room needs three consecutive enclosed evaluations to spawn charges. An opened door can break the enclosure until the neighboring area is mapped. A reference-space reset clears old alignment and requests a fresh scan.
 - Keep the map updating after the first enclosure. Rebuild shared surface geometry as evidence changes, and keep virtual blast openings in their tracked planes. View windows use off-axis projection through the physical location of the opening. Rendering concentrates on nearby openings and caps active windows and dinosaur counts for phone GPUs.
 
-All room geometry is held in the page's memory for the current session. Raw camera frames and depth are provided locally by the browser. Reset or exit clears the map.
+The game saves confirmed geometry for the most recent room in this browser. Tap **Resume saved room** from the same spot and face the same direction as when you first started that map. The new tracking session checks the saved geometry against live depth before showing it. If alignment fails, you can play a temporary expedition and try resuming again later. **Start a new map** or **Rescan** replaces the saved room once enough new geometry is confirmed. Camera images, raw depth and game progress stay out of the save.
 
 ## Verification
 

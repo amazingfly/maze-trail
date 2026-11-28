@@ -41,6 +41,34 @@ export class RoomMap {
   room = null
   enclosedScans = 0
 
+  snapshot() {
+    return this.confirmed().map(({kind,key,u,v,nx,nz,plane})=>({kind,key,u,v,nx,nz,plane}))
+  }
+
+  restore(tiles,origin) {
+    this.firstEye=copy(origin)
+    for(const tile of tiles) this.tiles.set(tile.key,{...tile,confirmed:true,seen:9,misses:0,last:0})
+    this.changed++
+  }
+
+  sampleTile(sample,eye,surface=surfaceSample(sample.point,sample.normal,eye)) {
+    if(!surface) return null
+    sample.key=surface.key
+    const exact=this.tiles.get(surface.key)
+    if(exact?.confirmed || Math.abs(surface.plane-(exact?.plane??Infinity))<.08) return exact
+    // Uncertainty around a quantization boundary is ordinary depth jitter.
+    const prefix=surface.key.slice(0,surface.key.lastIndexOf(':')+1)
+    const bin=Math.round(surface.plane/PLANE_STEP)
+    for(const adjacent of [bin-1,bin+1]) {
+      const tile=this.tiles.get(prefix+adjacent)
+      if(tile?.confirmed && Math.abs(tile.plane-surface.plane)<.115) {
+        sample.key=tile.key
+        return tile
+      }
+    }
+    return exact
+  }
+
   integrate(eye, samples, measure) {
     this.firstEye ??= copy(eye)
     this.scan++
@@ -50,12 +78,13 @@ export class RoomMap {
       if (distance(point,this.firstEye)>RADIUS) continue
       const surface = surfaceSample(point,normal,eye)
       if (!surface) continue
-      sample.key=surface.key
-      const hit = hits.get(surface.key)
+      const known=this.sampleTile(sample,eye,surface)
+      const key=known?.confirmed?known.key:surface.key
+      const hit = hits.get(key)
       if (hit) {
         hit.sum += surface.plane
         hit.count++
-      } else hits.set(surface.key,{surface,sum:surface.plane,count:1})
+      } else hits.set(key,{surface,sum:surface.plane,count:1})
     }
     for (const [key,{surface,sum,count}] of hits) {
       let tile = this.tiles.get(key)
@@ -64,16 +93,16 @@ export class RoomMap {
         tile = {...surface,seen:0,misses:0,confirmed:false,from:copy(eye),last:this.scan}
         this.tiles.set(key,tile)
       }
-      const previous = tile.plane
+      tile.misses=0
+      if(tile.confirmed) continue
       tile.plane += (sum/count-tile.plane) * (tile.seen ? .26 : 1)
       tile.seen++
       tile.last=this.scan
-      tile.misses=0
       const verified = tile.seen>=4 && (distance(tile.from,eye)>.075 || tile.seen>=9)
-      if (verified && !tile.confirmed) {
+      if (verified) {
         tile.confirmed=true
         this.changed++
-      } else if (tile.confirmed && Math.abs(previous-tile.plane)>.008) this.changed++
+      }
     }
     for (const [key,tile] of this.tiles) {
       if (hits.has(key)) continue

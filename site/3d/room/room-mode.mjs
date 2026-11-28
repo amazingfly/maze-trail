@@ -3,6 +3,7 @@ import { WebXRExperienceHelper } from '@babylonjs/core/XR/webXRExperienceHelper.
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector.js'
 import { RoomMap, TILE, tileCenter, tileInAperture } from './room-map.mjs'
 import { RoomWorld } from './room-world.mjs'
+import { readRoom, writeRoom, cameraOrigin, roomOffset, matchesRoom } from './saved-room.mjs'
 import { DiscoveryFog } from './discovery-fog.mjs'
 import { depthFrame } from './depth.mjs'
 import { Encounters, autoAim } from './encounters.mjs'
@@ -11,6 +12,7 @@ import { encounterSound, soundPan } from './encounter-sound.mjs'
 import { JungleAudio } from '../sound.mjs'
 
 const id=name=>document.getElementById(name)
+const resume=id('resume')
 const begin=id('begin'), ar=id('ar-ui'), canvas=id('ar-canvas')
 const setup=id('room-start'), message=id('room-message'), state=id('scan-state')
 const action=id('charge'), exterior=id('exterior'), report=id('report')
@@ -20,6 +22,63 @@ const maximumOpenings=6
 let engine, world, helper, output, manager, tracking=false, frameObserver, space, active=false
 let map, tiles, room, eye, look, wall, ammo, surveyed, lastScan, lastSurvey, mappedVersion, heightBand
 let lastDepth, trace, fire, previewMode, floorTiles, nextCrystal, domOverlay, verifiedWall
+
+let saved=readRoom(), alignment=null, origin=null, saveVersion=0, saveAt=0, lastFusion=0
+let allowSave=true
+
+function saveMap() {
+  if(!allowSave || !origin || map.changed===saveVersion) return
+  const result=writeRoom(map,origin)
+  if(result) {
+    saved=result
+    saveVersion=map.changed
+  }
+}
+
+function startButtons() {
+  resume.hidden=!saved
+  resume.disabled=false
+  begin.textContent=saved?'Start a new map':'Start exploring'
+}
+
+function checkAlignment(frame,pose,now) {
+  if(!alignment) return false
+  const current=cameraOrigin(pose.transform)
+  if(!alignment.space && current && typeof XRRigidTransform==='function') {
+    const offset=roomOffset(current,alignment.saved.origin)
+    alignment.space=space.getOffsetReferenceSpace(new XRRigidTransform(offset.position,offset.orientation))
+  }
+  if(alignment.space && now-lastScan>.16) {
+    lastScan=now
+    const alignedPose=frame.getViewerPose(alignment.space)
+    const view=alignedPose?.views[0]
+    let depth
+    try { if(view) depth=frame.getDepthInformation(view) } catch {}
+    if(depth) {
+      const scan=depthFrame(view,depth)
+      if(matchesRoom(alignment.map,alignedPose.transform.position,scan.samples)) alignment.matches++
+      else alignment.matches=0
+    }
+    if(alignment.matches>=3) {
+      space.removeEventListener('reset',onReset)
+      space=alignment.space
+      manager.referenceSpace=space
+      space.addEventListener('reset',onReset)
+      map=alignment.map
+      origin=alignment.saved.origin
+      saveVersion=map.changed
+      alignment=null
+      allowSave=true
+      announce('Saved room restored. Look around to explore.')
+      return true
+    }
+  }
+  if(now>alignment.started+16) {
+    alignment=null
+    announce('Saved room could not be lined up. This expedition is temporary.')
+  }
+  return true
+}
 
 const encounter=new Encounters(onEncounter)
 let muted=false
@@ -69,6 +128,9 @@ function firePhaser(event) {
   encounter.shoot(eye,dir,performance.now()/1000)
 }
 function resetMap(reason='') {
+  origin=null
+  lastFusion=saveAt=saveVersion=0
+  alignment=null
   encounter.reset()
   creatures?.clear()
   previousFrame=null
@@ -173,6 +235,7 @@ function onFrame(frame) {
     return
   }
   if(!wasTracking) world.scene.meshes.forEach(mesh=>{if (mesh.visibility===0) mesh.visibility=1})
+  if(checkAlignment(frame,pose,now)) return
   capturePose(pose)
   const view=pose.views[0]
   const projection=Matrix.FromArray(view.projectionMatrix)
@@ -183,6 +246,8 @@ function onFrame(frame) {
     a.inFrame=p.z>0 && p.z<1 && Math.abs(p.x)<1 && Math.abs(p.y)<1
   }
   if (trace && Vector3.DistanceSquared(trace,eye)>2.25) {
+    saveMap()
+    allowSave=false
     restartSurvey('Position changed. Nearby surfaces will reappear as you explore.')
     return
   }
@@ -198,7 +263,14 @@ function onFrame(frame) {
     if (depth) {
       const scan=depthFrame(view,depth)
       if (scan.samples.length>20) {
-        map.integrate(eye,scan.samples,scan.measure)
+        origin??=cameraOrigin(pose.transform)
+        let known=0
+        for(const sample of scan.samples) if(map.sampleTile(sample,eye)?.confirmed) known++
+        const interval=known/scan.samples.length>.82?.55:.13
+        if(now-lastFusion>=interval) {
+          map.integrate(eye,scan.samples,scan.measure)
+          lastFusion=now
+        }
         fog.observe(map,scan.samples,pose,now)
         lastDepth=now
         currentDepth=scan
@@ -216,7 +288,7 @@ function onFrame(frame) {
   if(moved && !currentDepth) fog.reset()
   if (now-lastSurvey>.44) {
     lastSurvey=now
-    tiles=map.confirmed()
+    if (map.changed!==mappedVersion) tiles=map.confirmed()
     if (now-lastDepth<1.6) room=map.survey(eye,tiles)
     if (room.durable && !surveyed) {
       surveyed=true
@@ -224,15 +296,20 @@ function onFrame(frame) {
     }
     if(now-lastDepth<1.6) encounter.survey(room,eye,tiles)
     floorTiles=room.floor.tiles ?? []
+    let portalChanged=false
     for (const portal of world.portals.slice()) {
-      if (!map.tiles.has(portal.key)) world.removePortal(portal)
-      else if (portal.kind==='unknown' && map.farSide(portal,portal.floorY,tiles)) portal.kind='interior'
+      if (!map.tiles.has(portal.key)) { world.removePortal(portal); portalChanged=true }
+      else if (portal.kind==='unknown' && map.farSide(portal,portal.floorY,tiles)) { portal.kind='interior'; portalChanged=true }
     }
     const measuredBand=[room.floor.y,room.roof.y].map(y=>Math.round(y*10)).join(':')
-    if (map.changed!==mappedVersion || measuredBand!==heightBand) {
+    if (map.changed!==mappedVersion || measuredBand!==heightBand || portalChanged) {
       world.rebuild(tiles,room)
       mappedVersion=map.changed
       heightBand=measuredBand
+    }
+    if(now>=saveAt) {
+      saveAt=now+3
+      saveMap()
     }
     chooseCrystal(now)
     status(now)
@@ -242,7 +319,7 @@ function onFrame(frame) {
   previousFrame=now
   if(fresh) encounter.step(dt,eye,look)
   creatures.draw(encounter.actors,fresh?dt:0,encounter.time,fresh,fresh && encounter.enabled)
-  wall=now-lastDepth<1.6 ? map.wallTarget(eye,look,tiles) : null
+  wall=surveyed && fresh ? map.wallTarget(eye,look,tiles) : null
   if (wall && world.portals.some(p=>tileInAperture(wall.tile,p))) wall=null
   if (currentDepth) {
     const viewDepth=wall ? currentDepth.measure(wall) : null
@@ -303,6 +380,7 @@ async function exit() {
 }
 
 function cleanup() {
+  saveMap()
   active=false
   manager?.onXRFrameObservable.remove(frameObserver)
   space?.removeEventListener('reset',onReset)
@@ -314,10 +392,13 @@ function cleanup() {
   ar.hidden=true
   canvas.hidden=true
   begin.disabled=false
-  message.textContent='Start another expedition.'
+  startButtons()
+  message.textContent=saved?'To resume, start from the same spot and face the same direction as last time.':'Start another expedition.'
 }
 
 function onReset() {
+  saveMap()
+  allowSave=false
   restartSurvey('Position tracking reset. Look around to rediscover your surroundings.')
 }
 
@@ -340,16 +421,18 @@ async function prepare() {
     output=helper.sessionManager.getWebXRRenderTarget({canvasElement:canvas,
       canvasOptions:{alpha:true,depth:true,stencil:true,framebufferScaleFactor:.83}})
     begin.disabled=false
-    message.textContent='Use a lit room. Move slowly and keep the phone in your hand.'
+    startButtons()
+    message.textContent=saved?'To resume, start from the same spot and face the same direction as last time.':'Use a lit room. Move slowly and keep the phone in your hand.'
   } catch (error) {
     message.textContent='The AR renderer could not start on this device. You can play the 3D maze instead.'
     console.error(error)
   }
 }
 
-async function enter() {
+async function enter(restore=false) {
   if (!helper || active) return
   begin.disabled=true
+  resume.disabled=true
   message.textContent='Opening camera and depth tracking…'
   audio.start({ambience:false})
   try {
@@ -369,7 +452,14 @@ async function enter() {
     canvas.hidden=false
     world.clearProgress()
     resetMap()
-    announce('Look around. The world appears through the mist as you explore.')
+    allowSave=!restore
+    if(restore && saved) {
+      const previous=new RoomMap()
+      previous.restore(saved.tiles,saved.origin)
+      alignment={saved,map:previous,space:null,matches:0,started:performance.now()/1000}
+      state.textContent='Finding your saved room'
+      announce('Start from the same spot and face the same way. Hold the phone steady, then look around slowly.')
+    } else announce('Look around. The world appears through the mist as you explore.')
     setSound()
     world.scene.autoClear=true
     frameObserver=manager.onXRFrameObservable.add(onFrame)
@@ -381,11 +471,13 @@ async function enter() {
   } catch (error) {
     message.textContent='Could not start AR with camera depth. Check camera permission, Google Play Services for AR, and your device’s Depth support.'
     begin.disabled=false
+    resume.disabled=false
     console.info('Room Expedition session request:',error)
   }
 }
 
-begin.addEventListener('click',enter)
+begin.addEventListener('click',()=>enter())
+resume.addEventListener('click',()=>enter(true))
 field.addEventListener('click',firePhaser)
 action.addEventListener('click',useCharge)
 exterior.addEventListener('click',()=>{
@@ -394,7 +486,7 @@ exterior.addEventListener('click',()=>{
   updateControls()
 })
 id('end-room').addEventListener('click',exit)
-id('rescan').addEventListener('click',()=>restartSurvey('Starting fresh in the mist.'))
+id('rescan').addEventListener('click',()=>{allowSave=true;restartSurvey('Starting fresh in the mist.')})
 ar.addEventListener('beforexrselect',event=>{ if (event.target.closest?.('button')) event.preventDefault() })
-window.addEventListener('pagehide',exit)
+window.addEventListener('pagehide',()=>{if(active) saveMap();exit()})
 prepare()

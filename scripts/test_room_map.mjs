@@ -43,7 +43,7 @@ function roomDepth(eye,direction) {
   }})
 }
 
-function sweep(origin,repeats=4,count=16) {
+function sweep(origin,repeats=4,count=16,map=roomMap) {
   for (let repeat=0;repeat<repeats;repeat++) {
     const from=origin.add(new Vector3((repeat%2)*.10,0,(repeat%3)*.055))
     for (let i=0;i<count;i++) {
@@ -51,7 +51,7 @@ function sweep(origin,repeats=4,count=16) {
       for (const y of [-.85,-.3,.13,.66]) {
         const direction=new Vector3(Math.sin(yaw),y,Math.cos(yaw)).normalize()
         const frame=roomDepth(from,direction)
-        roomMap.integrate(from,frame.samples,frame.measure)
+        map.integrate(from,frame.samples,frame.measure)
       }
     }
   }
@@ -82,6 +82,7 @@ const closedTarget=roomMap.wallTarget(new Vector3(0,1.45,0),new Vector3(0,0,1))
 assert.ok(closedTarget && Math.abs(closedTarget.z-2)<.15,'closed door is targetable')
 assert.equal(roomMap.farSide(closedTarget,0),false,'an unseen far side stays unclassified')
 
+const closedSnapshot=roomMap.snapshot()
 doorOpen=true
 sweep(new Vector3(0,1.55,1.04),6)
 assert.equal(countDoor(roomMap,2),0,'open doorway should remove stale closed-door evidence')
@@ -92,3 +93,21 @@ assert.equal(roomMap.farSide(closedTarget,0),true,'walked into adjacent room and
 for (let i=0;i<3;i++) roomMap.survey(eye)
 assert.ok(roomMap.room.durable,'connected rooms can once again form an enclosure')
 console.log('Passed surface correction, enclosure, wall aiming, opening-door clearing, and adjacent-room scan.')
+
+const restored = new RoomMap()
+restored.restore(JSON.parse(JSON.stringify(closedSnapshot)),eye)
+assert.equal(JSON.stringify(restored.snapshot()),JSON.stringify(closedSnapshot))
+const version=restored.changed
+const stable=restored.confirmed().find(t=>t.kind==='floor')
+const p=tileCenter(stable)
+restored.integrate(eye,[{point:{...p,y:p.y+.04},normal:{x:0,y:1,z:0}}],()=>null)
+assert.equal(restored.changed,version,'small depth jitter does not invalidate geometry')
+assert.equal(stable.plane,p.y)
+const doorwayEye=new Vector3(0,1.55,1.04)
+sweep(doorwayEye,4,12,restored)
+assert.equal(countDoor(restored,2),0,'a restored door updates when it opens')
+assert.ok(restored.tiles.has(stable.key),'unaffected geometry was retained')
+const {roomOffset}=await import('../site/3d/room/saved-room.mjs')
+const offset=roomOffset({x:8,y:2,z:7,yaw:Math.PI/2},{x:2,y:1,z:3,yaw:0})
+assert.ok(Vector3.Distance(new Vector3(5,1,9),new Vector3(offset.position.x,offset.position.y,offset.position.z))<1e-6)
+console.log('Passed snapshot restore, stable geometry and rotated session alignment.')

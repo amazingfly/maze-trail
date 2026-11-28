@@ -149,4 +149,14 @@ with sync_playwright() as pw:
     page.locator("#begin:enabled").wait_for()
     assert not errors,errors
     print("Tracking interruption, stale depth, recovery, rescan and exit passed.",flush=True)
+    page.reload()
+    page.locator("#resume").wait_for()
+    page.evaluate("mockRoom.origin();mockRoom.aim(0,-.48)")
+    page.locator("#resume").tap()
+    page.get_by_text("Saved room restored.",exact=False).wait_for()
+    page.locator("#phaser:enabled").wait_for()
+    capture("restored-room")
+    page.get_by_role("button",name="Exit",exact=True).tap()
+    assert not errors,errors
+    print("Saved geometry survived reload and passed live depth alignment.",flush=True)
     browser.close()
