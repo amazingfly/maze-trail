@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#102b22">
+  <meta name="description" content="Map a real room and discover dinosaurs in this camera-based augmented reality game.">
+  <title>Room Expedition · Maze Trail</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="./room.css?v=1">
+</head>
+<body>
+  <canvas id="ar-canvas" aria-hidden="true" hidden></canvas>
+  <main id="room-start">
+    <div class="start-copy">
+      <a class="brand" href="../../">Maze Trail</a>
+      <h1>Room<br><em>Expedition</em></h1>
+      <p>Scan the room around you, collect black crystals and open windows into the dinosaur world.</p>
+      <div class="actions">
+        <button class="primary" id="begin" type="button" disabled>Start room scan</button>
+        <a class="button" href="../?mode=maze">Play the maze</a>
+      </div>
+      <p id="room-message" role="status">Checking camera tracking support…</p>
+    </div>
+  </main>
+  <section id="ar-ui" aria-label="Room Expedition controls" hidden>
+    <div class="mist" aria-hidden="true"></div>
+    <div class="session-top">
+      <div class="scanner">
+        <strong id="scan-state">Looking for surfaces</strong>
+        <div class="meter"><progress id="scan-progress" max="1" value="0" aria-label="Room scan progress"></progress><span id="scan-percent">0%</span></div>
+      </div>
+      <button id="end-room" type="button">Exit</button>
+    </div>
+    <div class="crosshair" aria-hidden="true"></div>
+    <div class="session-bottom">
+      <p id="report" role="status"></p>
+      <div class="session-actions">
+        <button id="rescan" type="button">Rescan</button>
+        <button id="exterior" type="button" aria-pressed="false" title="Show the dinosaur meadow through the next wall opening" disabled>Meadow view</button>
+        <button id="charge" class="primary" type="button" disabled>Collect crystal</button>
+        <span class="ammo" aria-label="Crystal charges">◆ <b id="ammo-count">0</b></span>
+      </div>
+    </div>
+  </section>
+  <script type="module" src="./room-mode.mjs?v=1"></script>
+</body>
+</html>

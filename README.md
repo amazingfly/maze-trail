@@ -17,6 +17,10 @@ python3 -m http.server 8000 --directory "$preview_dir"
 
 Open `http://localhost:8000/` for the example or `http://localhost:8000/maze/mz1_t5vc6q2ixcw2ye2q2ozzkshfhu/` for its printed route.
 
+## Room Expedition
+
+Compatible Android phones open the camera-based game from the 3D hub. Scan the space, collect black crystals and reveal the area behind a mapped wall. [Room Expedition controls and mapping](docs/room-expedition.md)
+
 ## GitHub Pages
 
 The public site is [Maze Trail](https://amazingfly.github.io/maze-trail/). The QR prefix for this deployment is `https://amazingfly.github.io/maze-trail/maze`.
