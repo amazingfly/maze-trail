@@ -69,11 +69,31 @@ export function trailheadDinosaurs(layout) {
   return actors
 }
 
+export function strideLength(kind) {
+  return kind==='longneck'?.153:kind==='rex'?.204:.145
+}
+
+// A supporting foot travels one stride backwards over the stance fraction.
+// Match that travel to the actor's forward speed, including its world scale.
+export function advanceGaitClock(kind,adult,clock,speed,walk,pivot,dt) {
+  const scale=adult?5:.9, stance=adult?.71:.62
+  const step=strideLength(kind)*Math.max(.08,walk)*scale
+  const cycles=Math.min(adult?1.8:4.6,Math.max(speed*stance/step,Math.abs(pivot)*.55))
+  const clockRate=species[kind].gait*(adult?.58:1)+.19*2.1/(2*Math.PI)*Math.cos(clock*2.1)
+  return clock+dt*cycles/clockRate
+}
+
+export const callAttack=kind=>kind==='longneck'?.042:.026
+
 export function voiceEnvelope(call,time) {
   if (!call) return 0
-  return Math.max(0,...call.notes.map(({at,duration})=>{
-    const fraction=(time-call.start-at)/duration
-    return fraction>0 && fraction<1 ? Math.sin(Math.PI*fraction)**.64 : 0
+  return Math.max(0,...call.notes.map(({at,duration,attack=.026})=>{
+    const t=time-call.start-at
+    if(t<=0 || t>=duration)return 0
+    const peak=Math.min(attack,duration*.9)
+    const distance=t<peak ? (peak-t)/peak : (t-peak)/(duration-peak)
+    // The synth ramps gain exponentially. Compress its range for visible jaw travel.
+    return (Math.exp(-3.7*distance)-Math.exp(-3.7))/(1-Math.exp(-3.7))
   }))
 }
 
@@ -86,7 +106,7 @@ export function callHatchling(actor,player,time,audio,reply=false) {
   const pan=distance<.01 ? 0 : .78*(Math.sin(player.yaw)*dz-Math.cos(player.yaw)*dx)/distance
   const volume=(reply?.93:.53)/(1+distance*.23)
   const variations=actor.kind==='rex' ? [1,.89] : actor.kind==='longneck' ? [1,1.21,1.04] : [1,1.28]
-  const notes=variations.map((value,i)=>({at:i*.175,duration:.14+Math.random()*.082,pitch:pitch*value}))
+  const notes=variations.map((value,i)=>({at:i*.175,duration:.14+Math.random()*.082,pitch:pitch*value,attack:callAttack(actor.kind)}))
   const response=Math.atan2(-dx,-dz)
   if(reply) {
     actor.yaw+=deltaAngle(actor.yaw,response)*.42
@@ -250,7 +270,7 @@ export function walkHatchlings(actors,player,time,dt,layout,audio) {
     const stride=Math.min(1.24,velocity/.72)
     actor.walk+=(stride-actor.walk)*Math.min(1,dt*8)
     actor.clock+=dt
-    actor.gaitClock=(actor.gaitClock ?? 0)+dt*(.39+Math.min(velocity,2.8)*.74)
+    actor.gaitClock=advanceGaitClock(actor.kind,false,actor.gaitClock??0,velocity,actor.walk,0,dt)
     actor.bank=(actor.bank ?? 0)+((actor.steer ?? 0)-(actor.bank ?? 0))*Math.min(1,dt*6)
     const look=attention ? Math.max(-1,Math.min(1,deltaAngle(actor.yaw,Math.atan2(dx,dz)))) : 0
     actor.interest+=(look-actor.interest)*Math.min(1,dt*4)

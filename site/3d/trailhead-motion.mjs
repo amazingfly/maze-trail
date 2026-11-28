@@ -1,3 +1,5 @@
+import { advanceGaitClock } from './hatchling-play.mjs?v=22'
+
 // Distances are maze units. Each adult keeps a small home range beside the entrance.
 const profiles = {
   trike: {pace:.48, turn:.48, rest:3.8},
@@ -84,6 +86,6 @@ export function advanceTrailhead(herd,layout,player,dt) {
     actor.pivot+=(turnEffort-actor.pivot)*Math.min(1,dt*3)
     const effort=Math.max(speed/pace,Math.abs(turnEffort)*.65)
     actor.walk+=(effort-actor.walk)*Math.min(1,dt*4)
-    actor.gait+=dt*(.48+.16*effort)
+    actor.gait=advanceGaitClock(actor.kind,true,actor.gait,speed,actor.walk,actor.pivot,dt)
   }
 }

@@ -10,7 +10,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js'
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture.js'
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder.js'
 import { Hatchling } from './hatchling.mjs'
-import { species, voiceEnvelope, gestureDuration, isQuietGesture } from './hatchling-play.mjs'
+import { species, callAttack, voiceEnvelope, gestureDuration, isQuietGesture } from './hatchling-play.mjs'
 import { JungleAudio } from './sound.mjs'
 
 const canvas=document.querySelector('canvas')
@@ -153,7 +153,7 @@ try {
     audio.setLevels(0,.68,true)
     const kind=speciesChoice.value, adult=age.value!=='baby'
     const notes=adult ? audio.adultRoar(kind) : [0,.173,.351].map((at,index)=>({
-      at,duration:.17,pitch:species[kind].voice*(1+index*.12),
+      at,duration:.17,attack:callAttack(kind),pitch:species[kind].voice*(1+index*.12),
     }))
     if(!adult) audio.hatchlingCall(notes,0,.75,kind)
     audition={kind,adult,start:performance.now()/1000,notes}

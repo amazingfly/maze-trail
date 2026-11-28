@@ -1,3 +1,5 @@
+import { callAttack } from './hatchling-play.mjs?v=22'
+
 export class JungleAudio {
   start({ambience=true}={}) {
     const AudioContext = window.AudioContext ?? window.webkitAudioContext
@@ -50,9 +52,12 @@ export class JungleAudio {
     this.effects.gain.setTargetAtTime(playing ? effects : 0,time,.045)
   }
 
-  voice({ start, end, time, gain, delay=0, pan=0, type='sine', noise=false, attack=.012 }) {
+  voice(options) {
+    if (this.context?.state==='running') this.scheduleVoice(options)
+  }
+
+  scheduleVoice({ start, end, time, gain, delay=0, pan=0, type='sine', noise=false, attack=.012 }) {
     const ctx=this.context
-    if (!ctx || ctx.state !== 'running') return
     const t=ctx.currentTime+delay
     const envelope=ctx.createGain()
     envelope.gain.setValueAtTime(.0001,t)
@@ -88,8 +93,7 @@ export class JungleAudio {
   }
 
   hatchlingCall(notes,pan,volume,kind) {
-    for (const {at,duration,pitch} of notes) {
-      const attack=kind==='longneck'?.042:.026
+    for (const {at,duration,pitch,attack=callAttack(kind)} of notes) {
       this.voice({start:pitch*.76,end:pitch*1.25,time:duration,gain:volume*.23,
         delay:at,pan,type:'triangle',attack})
       this.voice({start:pitch*2.2,end:pitch*1.56,time:duration*.91,gain:volume*.083,
@@ -108,14 +112,14 @@ export class JungleAudio {
       longneck: [[.02,1.53,126,92],[1.14,.64,98,71]],
     }
     const notes=voices[kind]
+    const attack=kind==='rex'?.18:.095
     for (const [at,duration,from,to] of notes) {
-      const attack=kind==='rex'?.18:.095
       this.voice({start:from,end:to,time:duration,gain:.23,type:'triangle',delay:at,attack})
       this.voice({start:from*.55,end:to*.6,time:duration,gain:.19,delay:at,attack})
       this.voice({start:from*2.12,end:to*1.82,time:duration*.90,gain:.071,type:'sawtooth',delay:at+.035,attack})
       this.voice({start:kind==='rex'?895:1240,end:155,time:duration*.94,gain:.38,noise:true,delay:at+.04,attack})
     }
-    return notes.map(([at,duration])=>({at,duration}))
+    return notes.map(([at,duration])=>({at,duration,attack}))
   }
 
   play(kind,{pan=0,volume=1,distance=0,variant=0}={}) {

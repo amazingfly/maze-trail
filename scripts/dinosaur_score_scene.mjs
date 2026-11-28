@@ -9,7 +9,10 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js'
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js'
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color.js'
 import { Hatchling } from '../site/3d/hatchling.mjs'
-import { species, gestureDuration } from '../site/3d/hatchling-play.mjs'
+import { species, gestureDuration, walkHatchlings, callHatchling, voiceEnvelope } from '../site/3d/hatchling-play.mjs'
+
+import { advanceTrailhead, trailheadHerd } from '../site/3d/trailhead-motion.mjs'
+import { JungleAudio } from '../site/3d/sound.mjs'
 
 const canvas=document.querySelector('canvas')
 const engine=new Engine(canvas,false,{preserveDrawingBuffer:true,stencil:true})
@@ -37,7 +40,7 @@ const cues={
 }
 const poses=['idle','walk','turn','sit','wag','sneeze','call','sniff','listen','scuff','yawn']
 const phases=[0,.20,.40,.55,.75,.95,1]
-const views={side:-Math.PI/2,three:-.63}
+const views={side:-Math.PI/2,three:-.63,rear:Math.PI+.48}
 const mat=new StandardMaterial('visible region IDs',scene)
 mat.disableLighting=true
 mat.backFaceCulling=false
@@ -47,7 +50,7 @@ function idMaterial(hex) {
   return m
 }
 const tags=['#363636','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff'].map(idMaterial)
-let rig,meshes,materials,legPads,kind,adult,control
+let rig,meshes,materials,legPads,kind,adult,control,coatSeed
 function tag(mesh) {
   if(cues[kind][0].test(mesh.name)) return 1
   if(cues[kind][1].test(mesh.name) && (kind!=='rex'||rig.legs.some(l=>l.arm && mesh.isDescendantOf(l.shoulder)))) return 2
@@ -56,12 +59,13 @@ function tag(mesh) {
   if(['inner mouth','soft tongue','flexible mouth lining'].includes(mesh.name)) return 5
   return 0
 }
-async function select(key,isAdult,fixtureControl="normal") {
+async function select(key,isAdult,fixtureControl="normal",seed=271) {
   if(!cues[key]) throw new Error("Register the two identification cues for "+key)
   control=fixtureControl
+  coatSeed=seed
   rig?.root.dispose(false,true)
   kind=key;adult=isAdult
-  rig=new Hatchling(scene,kind,271,{adult})
+  rig=new Hatchling(scene,kind,seed,{adult})
   rig.root.scaling.setAll(1) // Compare model-space size independent of the game world's 5× zoom.
   rig.root.position.y=control==='floating'?.04:0
   meshes=rig.root.getChildMeshes()
@@ -85,6 +89,15 @@ function padHeight(pad) {
   let y=Infinity
   for(let i=0;i<v.length;i+=3)y=Math.min(y,v[i]*m[1]+v[i+1]*m[5]+v[i+2]*m[9]+m[13])
   return y
+}
+function lighting(profile) {
+  const dim=profile==='canopy'
+  sky.intensity=dim?.42:.85
+  sun.intensity=dim?.17:.81
+  sky.diffuse=Color3.FromHexString(dim?'#ffedcf':'#ffffff')
+  sky.groundColor=Color3.FromHexString(dim?'#699b89':'#859c8c')
+  sun.diffuse=Color3.FromHexString(dim?'#ffdeaa':'#ffffff')
+  sun.direction=(dim?new Vector3(9,-15,-8):new Vector3(-3,-4,-2)).normalize()
 }
 function strip(action,ids=false) {
   const sheet=document.createElement('canvas')
@@ -129,4 +142,92 @@ function mechanics(actions) {
   }
   return {contact,penetration,endpoint,lift}
 }
-window.audit={select,strip,mechanics,kinds:Object.keys(species),poses,phases}
+
+// Straight, obstacle-free segment using the production controller and gameplay scale.
+function locomotion() {
+  const hz=120,dt=1/hz,scale=adult?5:.9
+  const layout={spawn:[0,0],canWalk:()=>true,cellAt:()=>undefined,openLine:()=>true}
+  const player={x:10,z:0,yaw:0,travelSpeed:.3}
+  const actor=adult?trailheadHerd([{kind,adult,x:0,z:0,yaw:0}])[0]:{
+    kind,x:0,z:0,yaw:0,slot:1,following:true,route:[[0,100]],nextAction:Infinity,
+    nextCall:Infinity,repathAt:Infinity,action:'',clock:0,walk:0,interest:0}
+  actor.goal=[0,100]
+  const samples=legPads.map(()=>({start:null,strides:0,drift:0,lift:0,lowest:Infinity,contact:0}))
+  rig.root.scaling.setAll(scale)
+  rig.root.rotation.y=0
+  for(let frame=0;frame<hz*10;frame++) {
+    player.z=actor.z+1.2
+    if(adult) advanceTrailhead([actor],layout,player,dt)
+    else {player.x=0;walkHatchlings([actor],player,frame*dt,dt,layout,{})}
+    const clock=adult?actor.gait:actor.gaitClock
+    const swingClock=clock*species[kind].gait*(adult?.58:1)+.19*Math.sin(clock*2.1)/(2*Math.PI)
+    rig.root.position.x=actor.x
+    rig.root.position.z=actor.z+(control==='sliding'?scale*.12*Math.sin(frame*dt*10):0)
+    rig.root.position.y=control==='floating'?.04*scale:0
+    rig.root.rotation.y=actor.yaw
+    applyPose(actor.clock,{walk:actor.walk,gaitTime:clock,pivot:actor.pivot,bank:actor.bank,interest:actor.gaze??actor.interest})
+    if(frame<hz)continue
+    legPads.forEach(({leg,pad},i)=>{
+      const sample=samples[i],cycle=swingClock+(leg.side===1?.5:0)+(leg.front&&kind!=='rex'?.42:0)
+      const phase=cycle-Math.floor(cycle),stance=adult?.71:.62
+      const m=pad.computeWorldMatrix(true).m
+      // Center of the sole, with the pad's local .030 vertical radius accounted for.
+      const x=(m[12]-.030*m[4])/scale,z=(m[14]-.030*m[6])/scale,y=padHeight(pad)/scale
+      sample.lowest=Math.min(sample.lowest,y)
+      if(phase>stance){
+        sample.start=null
+        sample.lift=Math.max(sample.lift,y)
+      } else {
+        if(!sample.start){sample.start=[x,z];sample.strides++}
+        sample.drift=Math.max(sample.drift,Math.hypot(x-sample.start[0],z-sample.start[1]))
+        sample.contact=Math.max(sample.contact,Math.abs(y))
+      }
+    })
+  }
+  rig.root.scaling.setAll(1)
+  rig.root.position.set(0,control==='floating'?.04:0,0)
+  rig.root.rotation.y=0
+  return {travel:actor.z,feet:samples.map(({start,lowest,...metrics})=>({...metrics,swingRange:metrics.lift-lowest}))}
+}
+
+// Render the same oscillators, gain ramps and filtered noise used by the game.
+// Capture the real note schedule separately from the PCM envelope being compared.
+async function vocalTiming() {
+  const hz=24000,dt=.01,lead=.25
+  const ctx=new OfflineAudioContext(1,hz*3,hz)
+  const audio=new JungleAudio()
+  audio.context=ctx
+  audio.effects=ctx.destination
+  audio.voice=options=>audio.scheduleVoice({...options,delay:lead+(options.delay??0)})
+  audio.noise=ctx.createBuffer(1,hz*3,hz)
+  let state=coatSeed
+  const rand=()=>((state=(Math.imul(state,1664525)+1013904223)>>>0)/2**32)
+  const noise=audio.noise.getChannelData(0)
+  for(let i=0;i<noise.length;i++)noise[i]=rand()*2-1
+  const originalRandom=Math.random
+  let notes
+  try {
+    Math.random=rand
+    if(adult)notes=audio.adultRoar(kind)
+    else {
+      const actor={kind,x:0,z:0}
+      callHatchling(actor,{x:0,z:0,yaw:0},lead,audio)
+      notes=actor.call.notes
+    }
+  } finally {Math.random=originalRandom}
+  const pcm=(await ctx.startRendering()).getChannelData(0)
+  const mouth=[],rms=[]
+  for(let i=0;i<pcm.length/(hz*dt);i++){
+    const time=(i+.5)*dt
+    const visualTime=time-(control==='late-jaw'?.18:0)
+    const voice=voiceEnvelope({start:lead,notes},visualTime)
+    const progress=Math.max(0,Math.min(1,(visualTime-lead)/2.2))
+    applyPose(time,{voice,action:adult?'roar':'',progress})
+    mouth.push(rig.jaw.rotation.x)
+    let sum=0
+    for(let k=i*240;k<(i+1)*240;k++)sum+=pcm[k]**2
+    rms.push(Math.sqrt(sum/240))
+  }
+  return {dt,mouth,rms,notes}
+}
+window.audit={select,lighting,strip,mechanics,locomotion,vocalTiming,kinds:Object.keys(species),poses,phases}

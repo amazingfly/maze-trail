@@ -1,0 +1,384 @@
+{
+  "known_faults": {
+    "frozen": {
+      "baby": {
+        "results": {
+          "locomotion": false,
+          "grounding": false,
+          "voice_sync": false,
+          "passed": false
+        },
+        "max_drift": 0.25133371353149414,
+        "max_contact_error": 6.705522540007003e-09,
+        "voice": [
+          {
+            "jaw_range": 0.0,
+            "correlation": 0.0,
+            "lag_ms": null,
+            "passed": false
+          },
+          {
+            "jaw_range": 0.0,
+            "correlation": 0.0,
+            "lag_ms": null,
+            "passed": false
+          },
+          {
+            "jaw_range": 0.0,
+            "correlation": 0.0,
+            "lag_ms": null,
+            "passed": false
+          }
+        ]
+      },
+      "adult": {
+        "results": {
+          "locomotion": false,
+          "grounding": false,
+          "voice_sync": false,
+          "passed": false
+        },
+        "max_drift": 0.20323333740234378,
+        "max_contact_error": 1.9669532774768682e-08,
+        "voice": [
+          {
+            "jaw_range": 0.0,
+            "correlation": 0.0,
+            "lag_ms": null,
+            "passed": false
+          },
+          {
+            "jaw_range": 0.0,
+            "correlation": 0.0,
+            "lag_ms": null,
+            "passed": false
+          },
+          {
+            "jaw_range": 0.0,
+            "correlation": 0.0,
+            "lag_ms": null,
+            "passed": false
+          }
+        ]
+      }
+    },
+    "floating": {
+      "baby": {
+        "results": {
+          "locomotion": true,
+          "grounding": false,
+          "voice_sync": true,
+          "passed": false
+        },
+        "max_drift": 0.005274681363946396,
+        "max_contact_error": 0.05054270558887058,
+        "voice": [
+          {
+            "jaw_range": 0.610430801543367,
+            "correlation": 0.9908193089691618,
+            "lag_ms": 0,
+            "passed": true
+          },
+          {
+            "jaw_range": 0.6098983765652126,
+            "correlation": 0.9920792769224172,
+            "lag_ms": 0,
+            "passed": true
+          },
+          {
+            "jaw_range": 0.6171380053544102,
+            "correlation": 0.9904638612908463,
+            "lag_ms": 0,
+            "passed": true
+          }
+        ]
+      },
+      "adult": {
+        "results": {
+          "locomotion": true,
+          "grounding": false,
+          "voice_sync": true,
+          "passed": false
+        },
+        "max_drift": 0.0037366755745112234,
+        "max_contact_error": 0.040383593142032624,
+        "voice": [
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.9142673005409186,
+            "lag_ms": 10,
+            "passed": true
+          },
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.9163571628575214,
+            "lag_ms": 10,
+            "passed": true
+          },
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.9139853876274185,
+            "lag_ms": 10,
+            "passed": true
+          }
+        ]
+      }
+    },
+    "sliding": {
+      "baby": {
+        "results": {
+          "locomotion": true,
+          "grounding": false,
+          "voice_sync": true,
+          "passed": false
+        },
+        "max_drift": 0.2122062769306648,
+        "max_contact_error": 0.010542682475513881,
+        "voice": [
+          {
+            "jaw_range": 0.610430801543367,
+            "correlation": 0.9908193086057487,
+            "lag_ms": 0,
+            "passed": true
+          },
+          {
+            "jaw_range": 0.6098983765652126,
+            "correlation": 0.9920792771791164,
+            "lag_ms": 0,
+            "passed": true
+          },
+          {
+            "jaw_range": 0.6171380053544102,
+            "correlation": 0.9904638615775065,
+            "lag_ms": 0,
+            "passed": true
+          }
+        ]
+      },
+      "adult": {
+        "results": {
+          "locomotion": true,
+          "grounding": false,
+          "voice_sync": true,
+          "passed": false
+        },
+        "max_drift": 0.2389937436950165,
+        "max_contact_error": 0.0009445841610431667,
+        "voice": [
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.9142673007224231,
+            "lag_ms": 10,
+            "passed": true
+          },
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.9163571630070426,
+            "lag_ms": 10,
+            "passed": true
+          },
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.9139853880614991,
+            "lag_ms": 10,
+            "passed": true
+          }
+        ]
+      }
+    },
+    "late-jaw": {
+      "baby": {
+        "results": {
+          "locomotion": true,
+          "grounding": true,
+          "voice_sync": false,
+          "passed": false
+        },
+        "max_drift": 0.005274681363946396,
+        "max_contact_error": 0.010542682475513881,
+        "voice": [
+          {
+            "jaw_range": 0.610430801543367,
+            "correlation": 0.2748889720551764,
+            "lag_ms": 180,
+            "passed": false
+          },
+          {
+            "jaw_range": 0.6098983765652126,
+            "correlation": 0.24714282854959535,
+            "lag_ms": 180,
+            "passed": false
+          },
+          {
+            "jaw_range": 0.6171380053544102,
+            "correlation": 0.269760032200421,
+            "lag_ms": 180,
+            "passed": false
+          }
+        ]
+      },
+      "adult": {
+        "results": {
+          "locomotion": true,
+          "grounding": true,
+          "voice_sync": false,
+          "passed": false
+        },
+        "max_drift": 0.0037366755745112234,
+        "max_contact_error": 0.0009445841610431667,
+        "voice": [
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": -0.0005438306359997554,
+            "lag_ms": 190,
+            "passed": false
+          },
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.005828393236464494,
+            "lag_ms": 190,
+            "passed": false
+          },
+          {
+            "jaw_range": 1.0466605172406371,
+            "correlation": 0.000676451675084146,
+            "lag_ms": 190,
+            "passed": false
+          }
+        ]
+      }
+    }
+  },
+  "production_seed_271": {
+    "trike": {
+      "baby": {
+        "before": {
+          "pad_drift": 0.30703529932167095,
+          "voice_correlation": 0.5649863492112067,
+          "jaw_lag_ms": 30
+        },
+        "after": {
+          "pad_drift": 0.0022889210547344437,
+          "voice_correlation": 0.9940149200894822,
+          "jaw_lag_ms": 0
+        }
+      },
+      "adult": {
+        "before": {
+          "pad_drift": 0.03851155004765681,
+          "voice_correlation": 0.03552168477634175,
+          "jaw_lag_ms": 210
+        },
+        "after": {
+          "pad_drift": 0.0031317736416410233,
+          "voice_correlation": 0.9289108451754317,
+          "jaw_lag_ms": 0
+        }
+      }
+    },
+    "stego": {
+      "baby": {
+        "before": {
+          "pad_drift": 0.25872634840558195,
+          "voice_correlation": 0.5725742980300127,
+          "jaw_lag_ms": 30
+        },
+        "after": {
+          "pad_drift": 0.0021741376605037676,
+          "voice_correlation": 0.9947811070959586,
+          "jaw_lag_ms": 0
+        }
+      },
+      "adult": {
+        "before": {
+          "pad_drift": 0.05931111755575119,
+          "voice_correlation": 0.1464007619995376,
+          "jaw_lag_ms": 180
+        },
+        "after": {
+          "pad_drift": 0.0035986178715774982,
+          "voice_correlation": 0.9252215609521596,
+          "jaw_lag_ms": 0
+        }
+      }
+    },
+    "rex": {
+      "baby": {
+        "before": {
+          "pad_drift": 0.11344358919044797,
+          "voice_correlation": 0.5741286602808174,
+          "jaw_lag_ms": 30
+        },
+        "after": {
+          "pad_drift": 0.005274681363946396,
+          "voice_correlation": 0.9908193085307702,
+          "jaw_lag_ms": 0
+        }
+      },
+      "adult": {
+        "before": {
+          "pad_drift": 0.07701733096772219,
+          "voice_correlation": 0.030693784634025653,
+          "jaw_lag_ms": 220
+        },
+        "after": {
+          "pad_drift": 0.0037366755745112234,
+          "voice_correlation": 0.9142673005157811,
+          "jaw_lag_ms": 10
+        }
+      }
+    },
+    "longneck": {
+      "baby": {
+        "before": {
+          "pad_drift": 0.35445138033328283,
+          "voice_correlation": 0.6143979096232026,
+          "jaw_lag_ms": 30
+        },
+        "after": {
+          "pad_drift": 0.002028371145341373,
+          "voice_correlation": 0.9786154207251716,
+          "jaw_lag_ms": 0
+        }
+      },
+      "adult": {
+        "before": {
+          "pad_drift": 0.03908278295289285,
+          "voice_correlation": -0.14237091140646527,
+          "jaw_lag_ms": 240
+        },
+        "after": {
+          "pad_drift": 0.00336641918221708,
+          "voice_correlation": 0.9388295590281666,
+          "jaw_lag_ms": 0
+        }
+      }
+    },
+    "anky": {
+      "baby": {
+        "before": {
+          "pad_drift": 0.34671127425624837,
+          "voice_correlation": 0.5702215081513718,
+          "jaw_lag_ms": 30
+        },
+        "after": {
+          "pad_drift": 0.0022968108992992677,
+          "voice_correlation": 0.993909565792146,
+          "jaw_lag_ms": 0
+        }
+      },
+      "adult": {
+        "before": {
+          "pad_drift": 0.039395332424126864,
+          "voice_correlation": 0.32139787907981027,
+          "jaw_lag_ms": 150
+        },
+        "after": {
+          "pad_drift": 0.003551773719119687,
+          "voice_correlation": 0.922944844290289,
+          "jaw_lag_ms": 0
+        }
+      }
+    }
+  }
+}

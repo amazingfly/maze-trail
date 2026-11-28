@@ -1,9 +1,9 @@
-import { advanceTrailhead, trailheadHerd } from './trailhead-motion.mjs'
+import { advanceTrailhead, trailheadHerd } from './trailhead-motion.mjs?v=22'
 import { dinosaurContact, dinosaurJumpLimit, slidePlayer } from './movement.mjs'
-import { species, findHatchlings, walkHatchlings, targetHatchling, callHatchling, recruitHatchling } from './hatchling-play.mjs'
+import { species, findHatchlings, walkHatchlings, targetHatchling, callHatchling, recruitHatchling } from './hatchling-play.mjs?v=22'
 import { Layout } from './layout.mjs'
 import { bombBurst, crystals, effectLimit, newExpedition } from './expedition.mjs'
-import { JungleAudio } from './sound.mjs'
+import { JungleAudio } from './sound.mjs?v=22'
 
 const byId = id => document.getElementById(id)
 const game = byId('game')
@@ -854,7 +854,7 @@ new ResizeObserver(() => {
 }).observe(view)
 
 try {
-  const [{ World }, records] = await Promise.all([import('./world.mjs?v=21'), readJSON('./levels.json?v=2')])
+  const [{ World }, records] = await Promise.all([import('./world.mjs?v=22'), readJSON('./levels.json?v=2')])
   const preferWebGPU = new URLSearchParams(location.search).get('renderer') !== 'webgl'
   world = await World.create(view.querySelector('canvas'), preferWebGPU)
   const groups = new Map()

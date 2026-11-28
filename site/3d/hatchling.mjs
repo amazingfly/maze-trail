@@ -7,7 +7,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh.js'
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData.js'
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js'
 
-import { species, isQuietGesture } from './hatchling-play.mjs'
+import { species, isQuietGesture, strideLength } from './hatchling-play.mjs'
 
 const rgb = color => Color3.FromInts(color >> 16, (color >> 8) & 255, color & 255)
 const TAU = 2*Math.PI
@@ -234,6 +234,7 @@ export class Hatchling {
   constructor(scene, kind, seed=1, { adult=false }={}) {
     this.collisionMeshes = []
     this.bodyMatrix=Matrix.Identity()
+    this.inverseBody=Matrix.Identity()
     this.bodyOrientation=new Quaternion()
     this.kind=kind
     this.listenSide=seed%2 ? 1 : -1
@@ -527,7 +528,9 @@ export class Hatchling {
       const jointHeight=arm?.397:rex?.287:long?.318:.237
       const femur=arm?.060:rex?.155:long?.168:.126
       const shin=arm?.050:rex?.149:long?.160:.123
-      const shoulder=node(arm?'shoulder':'upper leg',scene,this.body,[side*(arm?(adult?.116:.105):.097),jointHeight,front?.121:-.103])
+      const hip=[side*(arm?(adult?.116:.105):.097),jointHeight,front?.121:-.103]
+      const socket=arm?null:node('leg roll',scene,this.body,hip)
+      const shoulder=node(arm?'shoulder':'upper leg',scene,socket??this.body,arm?hip:[0,0,0])
       const knee=node(arm?'wrist':'knee',scene,shoulder,[side*(arm?.011:0),-femur,arm?.020:.007])
       const ankle=node(arm?'hand':'ankle',scene,knee,[0,-shin,arm?.021:.010])
       const width=(arm?.027:front?.042:.057)*(adult?1.15:1)
@@ -540,7 +543,7 @@ export class Hatchling {
         const x=(j-(arm?.5:1))*width*(arm?.86:.53)
         solid('round toe',ankle,[x,-.009,arm?.050:.061],[width*.30,arm?.013:.017,.019],bone)
       }
-      this.legs.push({shoulder,knee,ankle,side,front,arm,
+      this.legs.push({socket,shoulder,knee,ankle,side,front,arm,
         upper:Math.hypot(femur,knee.position.z),lower:Math.hypot(shin,ankle.position.z),
         upperRest:Math.atan2(knee.position.z,femur),lowerRest:Math.atan2(ankle.position.z,shin),
       })
@@ -707,11 +710,12 @@ export class Hatchling {
     const stance=adult?.71:.62
     Quaternion.FromEulerAnglesToRef(this.body.rotation.x,this.body.rotation.y,this.body.rotation.z,this.bodyOrientation)
     Matrix.ComposeToRef(this.body.scaling,this.bodyOrientation,this.body.position,this.bodyMatrix)
-    const m=this.bodyMatrix.m
-    for(const {shoulder,knee,ankle,side,front,arm,upper,lower,upperRest,lowerRest} of this.legs){
+    this.bodyMatrix.invertToRef(this.inverseBody)
+    const m=this.bodyMatrix.m, inv=this.inverseBody.m
+    for(const {socket,shoulder,knee,ankle,side,front,arm,upper,lower,upperRest,lowerRest} of this.legs){
       const cycle=gait/TAU+(side===1?.5:0)+(front&&!rex?.42:0)
       const phase=cycle-Math.floor(cycle)
-      const stride=this.kind==='longneck'?.153:rex?.204:.145
+      const stride=strideLength(this.kind)
       const swing=phase>stance
       const swingProgress=(phase-stance)/(1-stance)
       const forward=walk*stride*(swing ? -.5+smooth(swingProgress) : .5-phase/stance)
@@ -728,11 +732,23 @@ export class Hatchling {
       }
       const footTravel=forward*(1-Math.abs(pivot))-forward*side*pivot
       const pawing=side===this.listenSide && front!==rex
-      const targetZ=footTravel+(pawing?rake:0)+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
-      const hip=shoulder.position
-      // Solve in the limb plane for the requested sole height in root space.
+      let targetZ=footTravel+(pawing?rake:0)+roar*(front?.028:-.034)+sit*(front?.039:.093)+wag*(front?.012:-.011)*Math.sin(progress*TAU*2.45)
+      const hip=socket.position
       const ankleHeight=.033+lift+(pawing?pawLift:0)
-      const drop=hip.y+(m[13]+m[1]*hip.x+m[9]*(hip.z+targetZ)-ankleHeight)/m[5]
+      let drop=hip.y+(m[13]+m[1]*hip.x+m[9]*(hip.z+targetZ)-ankleHeight)/m[5]
+      socket.rotation.z=0
+      if(walk>0) {
+        // Locate the walking ankle in root space. Roll the leg plane around the
+        // socket so the chest can shift sideways without dragging a planted pad.
+        const z=hip.z+targetZ
+        const dx=inv[0]*hip.x+inv[4]*ankleHeight+inv[8]*z+inv[12]-hip.x
+        const dy=hip.y-(inv[1]*hip.x+inv[5]*ankleHeight+inv[9]*z+inv[13])
+        const dz=inv[2]*hip.x+inv[6]*ankleHeight+inv[10]*z+inv[14]-hip.z
+        const weight=clamp(walk)
+        socket.rotation.z=weight*Math.atan2(dx,dy)
+        drop+=weight*(Math.hypot(dx,dy)-drop)
+        targetZ+=weight*(dz-targetZ)
+      }
       const reachLength=Math.min(upper+lower-.0001,Math.max(Math.abs(upper-lower)+.0001,Math.hypot(drop,targetZ)))
       const bend=front&&!rex ? -1 : 1
       const cosA=(upper**2+reachLength**2-lower**2)/(2*upper*reachLength)
@@ -741,7 +757,7 @@ export class Hatchling {
       knee.rotation.x=lowerRest-upperRest+bend*Math.acos(Math.max(-1,Math.min(1,cosB)))
       // Cancel torso pitch and bank at the ankle to keep planted feet flat.
       ankle.rotation.x=-this.body.rotation.x-shoulder.rotation.x-knee.rotation.x+walk*lift*3.2+(pawing?pawLift*.90:0)
-      ankle.rotation.z=-this.body.rotation.z-shoulder.rotation.z
+      ankle.rotation.z=-this.body.rotation.z-socket.rotation.z-shoulder.rotation.z
     }
   }
 }
