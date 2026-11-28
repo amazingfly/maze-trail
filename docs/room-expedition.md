@@ -6,11 +6,11 @@ Tap **Start exploring** in a lit room. You enter the mist immediately. As you lo
 
 ## Pocket dinosaurs
 
-Look near a newly revealed patch of floor to find the first dinosaur. Feathered teal raptors wander in, call, crouch and spring toward the shield. Gold-domed pachycephalosaurs crack a scanned wall, push through a temporary burrow and charge head-first. A contracting amber ring gives time to shoot. Only one dinosaur winds up at a time. A hit pulses the edge of the screen red. Exploration continues after a hit.
+Look near a newly revealed patch of floor to find the first dinosaur. Feathered teal raptors burrow up through the floor, call, crouch and spring toward the shield. Gold-domed pachycephalosaurs break through a scanned wall or burrow up through the floor, then charge head-first. A contracting amber ring gives time to shoot. Only one dinosaur winds up at a time. A hit pulses the edge of the screen red. Exploration continues after a hit.
 
 Tap anywhere near a visible dinosaur to fire the phaser. Aim assist accepts about 33 degrees of error, favors the dinosaur closest to the tap direction and ignores targets hidden by scanned obstacles. A successful shot collapses the silhouette into crystal sparks and increments the star counter. The speaker button remembers the sound setting on this browser. All nine encounter cues are synthesized locally, with separate voices for each species and camera-relative stereo placement.
 
-The animals follow the connected, observed floor. A broken wall window remains a physical barrier. Animals can roam any sufficiently large connected patch of confirmed floor near you, even with an open doorway or an unseen ceiling. Their movement pauses when tracking, recent depth or local floor support is lost. At most three indoor dinosaurs are active. If the map has no suitable wall for a burrow, another raptor can appear on the floor.
+The animals follow the connected, observed floor. A broken wall window remains a physical barrier. Animals can roam any sufficiently large connected patch of confirmed floor near you, even with an open doorway or an unseen ceiling. Their movement pauses when tracking, recent depth or local floor support is lost. At most three indoor dinosaurs are active. The first burrow starts about a second after a suitable spot is found. For later spawns, the cumulative chance rises while there is room for another dinosaur. It reaches 99% by one minute of eligible play.
 
 ## How mapping works
 

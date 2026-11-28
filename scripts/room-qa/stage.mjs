@@ -22,7 +22,8 @@ window.renderPose=async name=>{
   let seed=39451
   Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
   const a=base(1,'raptor',.44,.86), b=base(2,'domer',-.42,1.42)
-  const actors=[a,b]
+  const ground=name.startsWith('ground-')
+  const actors=ground?[a]:[a,b]
   camera.fov=1.08
   camera.position.copyFrom(eye)
   camera.setTarget(new Vector3(0,.27,1))
@@ -36,7 +37,16 @@ window.renderPose=async name=>{
     a.x=1.4;b.x=-.58;b.entry.x=-.83;b.z=1.62
     camera.position.set(-1.15,.61,.43);camera.setTarget(new Vector3(-.57,.26,1.87))
   }
+  if(ground) {
+    a.entry={x:a.x,z:a.z,surface:'floor'}
+    a.age=name==='ground-crack'?.12:name==='ground-emerge'?.65:1
+    a.state=name==='ground-debris'?'roam':'breach'
+    camera.position.set(1.06,1.19,-.32)
+    camera.setTarget(new Vector3(a.x,.13,a.z))
+  }
   for(const d of actors) view.event('spawn',d)
+  if(ground) view.event('crack',a)
+  if(name==='ground-debris') view.event('break',a)
   if(name==='warning' || name==='breach') view.event('crack',b)
   if(name==='breach') {b.state='stalk';view.event('break',b)}
   if(name==='vapor') {
@@ -45,7 +55,7 @@ window.renderPose=async name=>{
     view.event('vapor',a)
     view.event('remove',a)
   }
-  for(let i=0;i<(name==='breach'?15:5);i++) view.draw(actors,.013,1+i*.013,true)
+  for(let i=0;i<(name==='breach'||ground?15:5);i++) view.draw(actors,.013,1+i*.013,true)
   scene.render()
   await scene.whenReadyAsync()
   const before=engine._drawCalls.current

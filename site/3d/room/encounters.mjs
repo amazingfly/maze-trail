@@ -4,6 +4,14 @@ const key=(x,z)=>x+':'+z
 const cell=p=>[Math.floor(p.x/TILE),Math.floor(p.z/TILE)]
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n))
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)
+const spawnLimit=3
+
+// Roll once per opening. The curve is the probability of a spawn by this
+// many seconds of eligible play, independent of the render frame rate.
+export function spawnChance(seconds) {
+  if(seconds>60) return .99+.01*clamp((seconds-60)/5,0,1)
+  return .99*(1-(1-clamp((seconds-1)/59,0,1))**10)
+}
 
 // Rebuild a small flow field toward the player each time the room is surveyed.
 // A virtual window never connects floor cells across its underlying physical wall.
@@ -66,7 +74,8 @@ export class Encounters {
   constructor(emit,random=Math.random) { this.emit=emit;this.random=random;this.reset() }
   reset() {
     this.actors=[];this.routes=new Map();this.barrier=new Set();this.edges=[]
-    this.time=0;this.nextSpawn=1;this.shotAt=-1;this.hitAt=-10
+    this.time=0;this.spawnAge=0;this.spawnRoll=0;this.spawnRetry=0
+    this.shotAt=-1;this.hitAt=-10
     this.score=0;this.serial=0;this.enabled=false
   }
   survey(room,eye,walls) {
@@ -77,9 +86,10 @@ export class Encounters {
   }
   node(p) {return this.routes.get(key(...cell(p)))}
   spawn(eye,look) {
-    let kind=this.serial%2?'domer':'raptor'
+    const kind=this.serial%2?'domer':'raptor'
     const choices=[...this.routes.values()].filter(n=>dist(n,eye)>.95 && dist(n,eye)<3.9 &&
-      !this.actors.some(a=>dist(a,n)<.72))
+      !this.actors.some(a=>dist(a,n)<.72) &&
+      clearLine(n,eye,k=>!this.barrier?.has(k)))
     const score=n=>((n.x-eye.x)*look.x+(n.z-eye.z)*look.z)/dist(n,eye)-.34*Math.abs(dist(n,eye)-1.85)
     choices.sort((a,b)=>score(b)-score(a))
     let origin=null, entry=null
@@ -89,25 +99,33 @@ export class Encounters {
           const w=tileCenter(t), d=dist(n,w)
           return d>.15 && d<.51 && Math.abs((n.x-w.x)*t.nz-(n.z-w.z)*t.nx)<.17
         })
-        if(t) {origin=n;entry={...tileCenter(t),nx:t.nx,nz:t.nz,key:t.key};break}
+        if(t) {origin=n;entry={...tileCenter(t),nx:t.nx,nz:t.nz,surface:'wall'};break}
       }
-      if(!origin) kind='raptor'
     }
     if(!origin) origin=choices[Math.floor(this.random()*Math.min(5,choices.length))]
     if(!origin) return false
+    entry??={x:origin.x,z:origin.z,surface:'floor'}
     const a={id:++this.serial,kind,x:origin.x,z:origin.z,y:origin.y,floor:origin.y,entry,
-      state:entry?'breach':'roam',age:0,duration:entry?1.05:2.1,travel:0,yaw:Math.atan2(eye.x-origin.x,eye.z-origin.z),
+      state:'breach',age:0,duration:entry.surface==='wall'?1.05:.80,travel:0,yaw:Math.atan2(eye.x-origin.x,eye.z-origin.z),
       hidden:false,visible:false}
     this.actors.push(a)
     this.emit('spawn',a)
-    if(entry) this.emit('crack',a)
+    this.emit('crack',a)
     return true
   }
   step(dt,eye,look) {
     if(!this.enabled) return
     dt=clamp(dt,0,.10)
     this.time+=dt
-    if(this.time>=this.nextSpawn && this.actors.length<3) this.nextSpawn=this.time+(this.spawn(eye,look)?5.5:.8)
+    if(this.actors.length<spawnLimit) {
+      this.spawnAge+=dt
+      if(this.spawnAge>=1 && this.time>=this.spawnRetry && spawnChance(this.spawnAge)>=this.spawnRoll) {
+        if(this.spawn(eye,look)) {
+          this.spawnAge=0
+          this.spawnRoll=this.random()
+        } else this.spawnRetry=this.time+.5
+      }
+    }
     for(const a of this.actors.slice()) {
       const n=this.node(a)
       if(!n) {this.remove(a);continue}
@@ -120,7 +138,7 @@ export class Encounters {
       const p=Math.min(1,a.age/a.duration)
       const change=(state,duration)=>{a.state=state;a.duration=duration;a.age=0}
       if(a.state==='breach') {
-        if(p>=1) {change('stalk',9);this.emit('break',a)}
+        if(p>=1) {change('roam',1.2);this.emit('break',a)}
       } else if(a.state==='roam' || a.state==='stalk') {
         if(a.state==='roam' && p>=1) change('stalk',9)
         const takingTurn=this.actors.some(b=>b!==a && (b.state==='warn' || b.state==='lunge'))

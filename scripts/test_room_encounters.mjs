@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { Encounters, autoAim } from '../site/3d/room/encounters.mjs'
+import { Encounters, autoAim, spawnChance } from '../site/3d/room/encounters.mjs'
 
 const eye={x:0,y:1.52,z:0}, look={x:0,y:-.45,z:.89}
 const tiles=[],cells=new Set(),walls=[]
@@ -10,7 +10,7 @@ for(let u=-7;u<=7;u++) for(let v=-7;v<=7;v++) {
 for(let u=-7;u<=7;u++) walls.push({kind:'wall',u,v:1,nx:0,nz:1,plane:2.07,key:'wall:'+u})
 const room={durable:true,sealed:true,cells,floor:{tiles,y:0}}
 const events=[]
-const game=new Encounters((type,a)=>events.push([type,a?.kind,game.time]),()=>.37)
+const game=new Encounters((type,a)=>events.push([type,a?.kind,game.time,a?.entry?.surface]),()=>.37)
 const run=n=>{for(let i=0;i<n;i++) game.step(1/60,eye,look)}
 run(300)
 assert.equal(game.actors.length,0)
@@ -24,6 +24,7 @@ for(const k of ['x','y','z']) dir[k]/=len
 assert.equal(autoAim([a],eye,dir),a)
 game.shoot(eye,dir)
 assert.equal(game.score,1)
+assert.deepEqual(events.filter(([type])=>type==='spawn').slice(0,2).map(event=>event[3]),['floor','wall'])
 assert.equal(game.shoot(eye,dir),false)
 assert.ok(game.actors.length<3)
 game.reset()
@@ -51,7 +52,11 @@ game.reset()
 game.survey(room,eye,[])
 run(1800)
 assert.equal(game.actors.length,3,'floor spawns continue when a burrow is unavailable')
-assert.ok(game.actors.every(a=>a.kind==='raptor'))
+assert.ok(game.actors.every(a=>a.entry.surface==='floor'))
+assert.ok(game.actors.some(a=>a.kind==='domer'),'both species can use floor burrows')
+const fullAge=game.spawnAge
+run(120)
+assert.equal(game.spawnAge,fullAge,'spawn clock pauses at capacity')
 for(const a of game.actors) a.inFrame=false
 const before=events.length
 run(450)
@@ -73,3 +78,10 @@ game.survey({sealed:false,floor:distantFloor,barrier:divider},eye,[])
 assert.equal(game.enabled,false,'known wall separates the viewer from the only observed floor')
 game.survey({sealed:false,floor:distantFloor,barrier:new Set()},eye,[])
 assert.equal(game.enabled,true,'a visible floor patch can host dinosaurs before mapping the floor underfoot')
+
+assert.equal(spawnChance(0),0)
+assert.ok(spawnChance(5)>.49,'most gaps are around five seconds or less')
+assert.ok(spawnChance(20)>spawnChance(5))
+assert.equal(spawnChance(60),.99)
+assert.equal(spawnChance(65),1)
+console.log('Passed spawn probability curve, both burrow surfaces, and capacity timer pause.')

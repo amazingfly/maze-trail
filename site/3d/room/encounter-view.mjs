@@ -65,11 +65,18 @@ export class EncounterView {
       const m=this.models.get(a.id)
       m?.root.dispose();m?.shadow.dispose();m?.alert.dispose();this.models.delete(a.id)
     } else if(type==='crack') {
-      const wall=a.entry
-      const side=Math.sign((a.x-wall.x)*wall.nx+(a.z-wall.z)*wall.nz)||1
+      const entry=a.entry
+      const ground=entry.surface==='floor'
+      const side=Math.sign((a.x-entry.x)*entry.nx+(a.z-entry.z)*entry.nz)||1
       const root=new TransformNode('burrow',this.scene)
-      root.position.set(wall.x+side*wall.nx*.055,a.floor+.26,wall.z+side*wall.nz*.055)
-      root.rotation.y=Math.atan2(side*wall.nx,side*wall.nz)
+      if(ground) {
+        root.position.set(entry.x,a.floor+.05,entry.z)
+        root.rotation.x=-Math.PI/2
+        root.rotation.y=a.yaw
+      } else {
+        root.position.set(entry.x+side*entry.nx*.055,a.floor+.26,entry.z+side*entry.nz*.055)
+        root.rotation.y=Math.atan2(side*entry.nx,side*entry.nz)
+      }
       const hole=CreateIcoSphere('burrow opening',{radius:1,subdivisions:1},this.scene)
       hole.parent=root;hole.scaling.set(.32,.25,.041);hole.material=this.mats.dark
       for(let i=0;i<9;i++) {
@@ -80,11 +87,12 @@ export class EncounterView {
         const line=this.tube(v(.25*x,.19*y,.06),v(.42*x,.33*y,.052),.008,'gold')
         line.parent=root
       }
-      this.burrows.push({root,id:a.id,age:0,key:wall.key})
+      this.burrows.push({root,age:0})
     } else if(type==='break') {
-      const origin=v(a.entry.x,a.floor+.29,a.entry.z)
+      const ground=a.entry.surface==='floor'
+      const origin=v(a.entry.x,a.floor+(ground?.06:.29),a.entry.z)
       const inward=v(a.x-origin.x,0,a.z-origin.z).normalize()
-      this.burst(origin.add(inward.scale(.13)),15,true)
+      this.burst(origin.add(inward.scale(.13)),ground?12:15,true)
     } else if(type==='shot') {
       const end=a?at(a):eye.add(dir.scale(2.7))
       const right=Vector3.Cross(dir,Vector3.Up()).normalize()
@@ -111,8 +119,11 @@ export class EncounterView {
       m.root.setEnabled(onFloor && !a.blocked && !a.hidden && emerge>0)
       m.root.position.set(a.x,a.y,a.z)
       if(emerge<1) {
-        m.root.position.x=a.entry.x+(a.x-a.entry.x)*emerge
-        m.root.position.z=a.entry.z+(a.z-a.entry.z)*emerge
+        if(a.entry.surface==='floor') m.root.position.y-=.18*(1-emerge)**2
+        else {
+          m.root.position.x=a.entry.x+(a.x-a.entry.x)*emerge
+          m.root.position.z=a.entry.z+(a.z-a.entry.z)*emerge
+        }
       }
       m.root.scaling.setAll(.48+.52*emerge)
       m.root.rotation.y=a.yaw
