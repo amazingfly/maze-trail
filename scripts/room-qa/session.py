@@ -116,9 +116,9 @@ with sync_playwright() as pw:
     page.evaluate("mockRoom.scan()")
     page.get_by_text("Room mapped",exact=True).wait_for(timeout=95000)
     # Keep the original crystal and wall controls covered in the same encounter.
-    for i in range(40):
+    for i in range(72):
         if int(page.locator("#ammo-count").inner_text()): break
-        page.evaluate("i=>mockRoom.aim(i*Math.PI/16,-.45)",i)
+        page.evaluate("i=>mockRoom.aim(i*Math.PI/12,[-.47,-.66,-.34][Math.floor(i/24)])",i)
         page.wait_for_timeout(80)
         if page.locator("#charge").is_enabled(): page.locator("#charge").evaluate("e=>e.click()")
     assert int(page.locator("#ammo-count").inner_text())>0, "Could not collect a crystal"
