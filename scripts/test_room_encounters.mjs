@@ -80,7 +80,7 @@ game.survey({sealed:false,floor:distantFloor,barrier:new Set()},eye,[])
 assert.equal(game.enabled,true,'a visible floor patch can host dinosaurs before mapping the floor underfoot')
 
 assert.equal(spawnChance(0),0)
-assert.ok(spawnChance(5)>.49,'most gaps are around five seconds or less')
+assert.ok(spawnChance(4)>.59,'typical gaps are shorter than the previous 5.5 seconds')
 assert.ok(spawnChance(20)>spawnChance(5))
 assert.equal(spawnChance(60),.99)
 assert.equal(spawnChance(65),1)

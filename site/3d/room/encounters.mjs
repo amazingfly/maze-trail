@@ -10,7 +10,7 @@ const spawnLimit=3
 // many seconds of eligible play, independent of the render frame rate.
 export function spawnChance(seconds) {
   if(seconds>60) return .99+.01*clamp((seconds-60)/5,0,1)
-  return .99*(1-(1-clamp((seconds-1)/59,0,1))**10)
+  return .99*(1-(1-clamp((seconds-1)/59,0,1))**18)
 }
 
 // Rebuild a small flow field toward the player each time the room is surveyed.
